@@ -1,760 +1,1176 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ledger — Notes</title>
+<title>Ledger — Notebooks</title>
 <style>
   :root{
-    --bg: #15181b;
-    --bg-raised: #1e2226;
-    --card: #23282d;
-    --card-hover: #292f35;
-    --ink: #e9e6df;
-    --ink-dim: #9aa1a8;
-    --ink-faint: #656d74;
-    --line: #33393f;
-    --amber: #d4a24c;
-    --teal: #5eb1a3;
-    --red: #c86b5a;
-    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --bg: #15181b; --bg-raised:#1e2226; --card:#23282d; --card-hover:#292f35;
+    --ink:#e9e6df; --ink-dim:#9aa1a8; --ink-faint:#656d74; --line:#33393f;
+    --amber:#d4a24c; --teal:#5eb1a3; --red:#c86b5a; --blue:#6f9bd1; --purple:#a689c9;
+    --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  html[data-theme="light"]{
+    --bg:#f2efe8; --bg-raised:#e9e5db; --card:#fbfaf6; --card-hover:#f2efe6;
+    --ink:#242220; --ink-dim:#5c574f; --ink-faint:#8a8579; --line:#d9d3c4;
+    --amber:#a8783a; --teal:#2f8577; --red:#b0503d; --blue:#3d6ea8; --purple:#7a5a9c;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  body{
-    background: var(--bg);
-    color: var(--ink);
-    font-family: var(--sans);
-    min-height:100vh;
-    line-height:1.5;
-  }
+  body{background:var(--bg); color:var(--ink); font-family:var(--sans); min-height:100vh;}
   a{color:inherit;}
-
-  /* ===== Header ===== */
-  header{
-    border-bottom:1px solid var(--line);
-    padding:22px 28px 18px;
-    display:flex;
-    align-items:baseline;
-    justify-content:space-between;
-    flex-wrap:wrap;
-    gap:12px;
-  }
-  .brand{
-    display:flex;
-    align-items:baseline;
-    gap:10px;
-  }
-  .brand .mark{
-    font-family:var(--mono);
-    color:var(--amber);
-    font-size:13px;
-    letter-spacing:2px;
-    border:1px solid var(--amber);
-    padding:2px 7px;
-    border-radius:3px;
-  }
-  .brand h1{
-    font-size:20px;
-    font-weight:600;
-    letter-spacing:0.3px;
-  }
-  .stats{
-    font-family:var(--mono);
-    font-size:12px;
-    color:var(--ink-faint);
-    display:flex;
-    gap:18px;
-  }
-  .stats span b{color:var(--ink-dim); font-weight:600;}
-
-  /* ===== Layout ===== */
-  .wrap{
-    max-width:1100px;
-    margin:0 auto;
-    padding:26px 28px 80px;
-    display:grid;
-    grid-template-columns:1fr;
-    gap:26px;
-  }
-
-  /* ===== Composer ===== */
-  .composer{
-    background:var(--bg-raised);
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:20px;
-  }
-  .composer h2{
-    font-size:12px;
-    text-transform:uppercase;
-    letter-spacing:1.5px;
-    color:var(--ink-faint);
-    margin-bottom:14px;
-    font-weight:600;
-  }
-  .row{
-    display:flex;
-    gap:12px;
-    flex-wrap:wrap;
-    margin-bottom:12px;
-  }
-  .field{
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-  }
-  .field label{
-    font-size:11px;
-    color:var(--ink-faint);
-    text-transform:uppercase;
-    letter-spacing:0.8px;
-  }
-  input[type=text], input[type=number], textarea, select{
-    background:var(--card);
-    border:1px solid var(--line);
-    color:var(--ink);
-    border-radius:6px;
-    padding:9px 11px;
-    font-family:var(--sans);
-    font-size:14px;
-    outline:none;
-    transition:border-color .15s;
-  }
-  input:focus, textarea:focus, select:focus{
-    border-color:var(--teal);
-  }
-  .field.code-num input{width:110px; font-family:var(--mono);}
-  .field.code-cat{min-width:200px; flex:1;}
-  .field.title{flex:2; min-width:220px;}
-  select{cursor:pointer;}
-  textarea{
-    width:100%;
-    min-height:130px;
-    resize:vertical;
-    font-size:14px;
-    line-height:1.6;
-  }
-  .new-cat-row{
-    display:none;
-    gap:10px;
-    margin-top:8px;
-    align-items:center;
-  }
-  .new-cat-row.show{display:flex;}
-  .new-cat-row input{flex:1;}
-  .btn{
-    font-family:var(--sans);
-    font-size:13px;
-    font-weight:600;
-    border:none;
-    border-radius:6px;
-    padding:9px 16px;
-    cursor:pointer;
-    transition:opacity .15s, transform .1s;
-  }
-  .btn:active{transform:scale(0.98);}
-  .btn-primary{background:var(--teal); color:#0f1412;}
-  .btn-primary:hover{opacity:0.88;}
-  .btn-ghost{background:transparent; color:var(--ink-dim); border:1px solid var(--line);}
-  .btn-ghost:hover{border-color:var(--ink-faint); color:var(--ink);}
-  .btn-danger{background:transparent; color:var(--red); border:1px solid #4a3530;}
-  .btn-danger:hover{background:rgba(200,107,90,0.12);}
-  .btn-small{padding:5px 10px; font-size:12px;}
-  .composer-actions{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-top:14px;
-  }
-  .hint{font-size:12px; color:var(--ink-faint);}
-
-  /* ===== Toolbar ===== */
-  .toolbar{
-    display:flex;
-    gap:10px;
-    flex-wrap:wrap;
-    align-items:center;
-    justify-content:space-between;
-  }
-  .toolbar-left{display:flex; gap:10px; flex-wrap:wrap; flex:1;}
-  .toolbar input[type=text]{min-width:200px; flex:1;}
-  .toolbar select{min-width:150px;}
-  .toolbar-right{display:flex; gap:8px;}
-
-  /* ===== Groups / Notes ===== */
-  .group{margin-bottom:22px;}
-  .group-head{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    margin-bottom:10px;
-    padding-bottom:6px;
-    border-bottom:1px solid var(--line);
-  }
-  .group-head .cat-name{
-    font-weight:700;
-    font-size:15px;
-    letter-spacing:0.2px;
-  }
-  .group-head .cat-count{
-    font-family:var(--mono);
-    font-size:11px;
-    color:var(--ink-faint);
-    background:var(--bg-raised);
-    padding:2px 8px;
-    border-radius:10px;
-  }
-  .cards{
-    display:grid;
-    grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
-    gap:12px;
-  }
-  .note{
-    background:var(--card);
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:14px;
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    transition:background .15s, border-color .15s;
-  }
-  .note:hover{background:var(--card-hover); border-color:#3d444b;}
-  .note-top{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    gap:8px;
-  }
-  .note-code{
-    font-family:var(--mono);
-    font-size:11px;
-    color:var(--amber);
-    background:rgba(212,162,76,0.1);
-    border:1px solid rgba(212,162,76,0.35);
-    padding:2px 7px;
-    border-radius:4px;
-    white-space:nowrap;
-  }
-  .note-title{
-    font-weight:600;
-    font-size:14.5px;
-    flex:1;
-  }
-  .note-body{
-    font-size:13.5px;
-    color:var(--ink-dim);
-    white-space:pre-wrap;
-    word-break:break-word;
-    max-height:120px;
-    overflow:hidden;
-    position:relative;
-  }
-  .note-body.expanded{max-height:none;}
-  .note-foot{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-top:4px;
-  }
-  .note-date{font-size:11px; color:var(--ink-faint);}
-  .note-actions{display:flex; gap:6px;}
-  .icon-btn{
-    background:transparent;
-    border:none;
-    color:var(--ink-faint);
-    cursor:pointer;
-    font-size:12px;
-    padding:3px 6px;
-    border-radius:4px;
-    font-family:var(--sans);
-  }
-  .icon-btn:hover{color:var(--ink); background:var(--bg-raised);}
-  .icon-btn.danger:hover{color:var(--red);}
-
-  .empty{
-    text-align:center;
-    padding:60px 20px;
-    color:var(--ink-faint);
-  }
-  .empty .big{font-size:34px; margin-bottom:10px;}
-
-  /* edit mode */
-  .note.editing textarea{width:100%; min-height:90px; margin-top:4px;}
-  .note.editing .edit-row{display:flex; gap:8px; margin-top:6px;}
-
-  footer{
-    text-align:center;
-    padding:20px;
-    color:var(--ink-faint);
-    font-size:11px;
-    font-family:var(--mono);
-  }
-
+  button{font-family:var(--sans); cursor:pointer;}
+  input,select,textarea{font-family:var(--sans);}
   ::-webkit-scrollbar{width:10px; height:10px;}
   ::-webkit-scrollbar-track{background:var(--bg);}
   ::-webkit-scrollbar-thumb{background:var(--line); border-radius:5px;}
 
-  @media (max-width:600px){
-    header{padding:18px;}
-    .wrap{padding:18px 16px 60px;}
-    .field.title{flex:1 1 100%;}
+  /* ===== Shell layout ===== */
+  .shell{display:grid; grid-template-columns:250px 1fr; min-height:100vh;}
+  @media (max-width:860px){ .shell{grid-template-columns:1fr;} .sidebar{position:fixed; z-index:40; height:100%; transform:translateX(-100%); transition:transform .2s;} .sidebar.open{transform:translateX(0);} }
+
+  /* ===== Sidebar ===== */
+  .sidebar{
+    background:var(--bg-raised); border-right:1px solid var(--line);
+    display:flex; flex-direction:column; padding:16px 12px; gap:14px; width:250px;
+  }
+  .brand{display:flex; align-items:center; gap:8px; padding:2px 4px 6px;}
+  .brand .mark{font-family:var(--mono); color:var(--amber); font-size:12px; letter-spacing:2px; border:1px solid var(--amber); padding:2px 6px; border-radius:3px;}
+  .brand h1{font-size:17px; font-weight:700;}
+  .side-section{display:flex; flex-direction:column; gap:4px;}
+  .side-label{font-size:10.5px; text-transform:uppercase; letter-spacing:1.2px; color:var(--ink-faint); padding:0 6px; margin-bottom:2px; font-weight:700;}
+  .nb-item{
+    display:flex; align-items:center; gap:8px; padding:8px 8px; border-radius:6px; cursor:pointer;
+    font-size:13.5px; color:var(--ink-dim); border:1px solid transparent;
+  }
+  .nb-item:hover{background:var(--card);}
+  .nb-item.active{background:var(--card); color:var(--ink); border-color:var(--line); font-weight:600;}
+  .nb-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  .nb-name{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .nb-count{font-family:var(--mono); font-size:10.5px; color:var(--ink-faint);}
+  .nb-item.special{font-weight:600;}
+  .side-btn{
+    display:flex; align-items:center; gap:6px; background:transparent; border:1px dashed var(--line);
+    color:var(--ink-faint); border-radius:6px; padding:7px 8px; font-size:12.5px; text-align:left;
+  }
+  .side-btn:hover{color:var(--ink); border-color:var(--ink-faint);}
+  .side-bottom{margin-top:auto; display:flex; flex-direction:column; gap:6px;}
+  .theme-toggle{display:flex; align-items:center; justify-content:space-between; padding:6px 6px;}
+  .theme-toggle button{background:var(--card); border:1px solid var(--line); color:var(--ink-dim); padding:5px 9px; border-radius:5px; font-size:11px;}
+  .theme-toggle button.active{color:var(--ink); border-color:var(--teal);}
+
+  /* ===== Main ===== */
+  .main{display:flex; flex-direction:column; min-width:0;}
+  .topbar{
+    border-bottom:1px solid var(--line); padding:14px 22px; display:flex; align-items:center;
+    justify-content:space-between; gap:14px; flex-wrap:wrap; position:sticky; top:0; background:var(--bg); z-index:10;
+  }
+  .topbar-left{display:flex; align-items:center; gap:10px; min-width:0;}
+  .menu-btn{display:none; background:none; border:none; color:var(--ink); font-size:20px;}
+  @media (max-width:860px){ .menu-btn{display:block;} }
+  .ctx-title{font-size:17px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .ctx-sub{font-size:11.5px; color:var(--ink-faint); font-family:var(--mono);}
+  .topbar-right{display:flex; gap:8px; flex-wrap:wrap;}
+
+  .wrap{max-width:1200px; width:100%; margin:0 auto; padding:22px 22px 80px; display:flex; flex-direction:column; gap:20px;}
+
+  /* ===== Buttons ===== */
+  .btn{font-size:12.5px; font-weight:600; border:none; border-radius:6px; padding:8px 14px; transition:opacity .15s, transform .1s;}
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--teal); color:#0f1412;}
+  .btn-primary:hover{opacity:.88;}
+  .btn-ghost{background:transparent; color:var(--ink-dim); border:1px solid var(--line);}
+  .btn-ghost:hover{border-color:var(--ink-faint); color:var(--ink);}
+  .btn-danger{background:transparent; color:var(--red); border:1px solid var(--line);}
+  .btn-danger:hover{background:rgba(200,107,90,.12); border-color:var(--red);}
+  .btn-sm{padding:5px 10px; font-size:11.5px;}
+  .icon-btn{background:transparent; border:none; color:var(--ink-faint); font-size:11.5px; padding:4px 7px; border-radius:4px;}
+  .icon-btn:hover{color:var(--ink); background:var(--bg-raised);}
+  .icon-btn.danger:hover{color:var(--red);}
+  .icon-btn.active{color:var(--amber);}
+
+  /* ===== Composer ===== */
+  .composer{background:var(--bg-raised); border:1px solid var(--line); border-radius:8px; padding:18px;}
+  .composer h2{font-size:11.5px; text-transform:uppercase; letter-spacing:1.4px; color:var(--ink-faint); font-weight:700; margin-bottom:12px;}
+  .row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
+  .field{display:flex; flex-direction:column; gap:5px;}
+  .field label{font-size:10.5px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.7px;}
+  input[type=text],input[type=number],textarea,select{
+    background:var(--card); border:1px solid var(--line); color:var(--ink); border-radius:6px;
+    padding:8px 10px; font-size:13.5px; outline:none; transition:border-color .15s;
+  }
+  input:focus,textarea:focus,select:focus{border-color:var(--teal);}
+  .field.num input{width:100px; font-family:var(--mono);}
+  .field.cat{min-width:170px;}
+  .field.title{flex:2; min-width:200px;}
+  .field.tags{flex:1; min-width:200px;}
+  select{cursor:pointer;}
+  textarea{width:100%; min-height:110px; resize:vertical; font-size:13.5px; line-height:1.6;}
+  .new-cat-row{display:none; gap:8px; margin-top:6px; align-items:center;}
+  .new-cat-row.show{display:flex;}
+  .new-cat-row input{flex:1;}
+  .composer-foot{display:flex; justify-content:space-between; align-items:center; margin-top:12px; flex-wrap:wrap; gap:8px;}
+  .hint{font-size:11.5px; color:var(--ink-faint);}
+  .hint.warn{color:var(--amber);}
+  .composer-meta{display:flex; gap:12px; align-items:center; font-size:11px; color:var(--ink-faint); font-family:var(--mono);}
+  .chk{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--ink-dim);}
+
+  /* ===== Toolbar ===== */
+  .toolbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between;}
+  .toolbar-left{display:flex; gap:8px; flex-wrap:wrap; flex:1; align-items:center;}
+  .toolbar input[type=text]{min-width:180px; flex:1;}
+  .toolbar select{min-width:120px;}
+  .toolbar-right{display:flex; gap:6px; flex-wrap:wrap;}
+  .view-toggle{display:flex; border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+  .view-toggle button{background:var(--card); border:none; color:var(--ink-faint); padding:7px 11px; font-size:11.5px;}
+  .view-toggle button.active{background:var(--teal); color:#0f1412;}
+
+  /* ===== Bulk bar ===== */
+  .bulk-bar{
+    display:none; align-items:center; gap:10px; background:var(--bg-raised); border:1px solid var(--teal);
+    border-radius:8px; padding:10px 14px; flex-wrap:wrap; position:sticky; top:64px; z-index:9;
+  }
+  .bulk-bar.show{display:flex;}
+  .bulk-bar span{font-size:12px; color:var(--ink-dim); font-family:var(--mono);}
+  .bulk-bar select{font-size:12px; padding:6px 8px;}
+
+  /* ===== Groups / cards ===== */
+  .group{margin-bottom:20px;}
+  .group-head{display:flex; align-items:center; gap:10px; margin-bottom:9px; padding-bottom:6px; border-bottom:1px solid var(--line);}
+  .cat-dot{width:9px; height:9px; border-radius:50%;}
+  .group-head .cat-name{font-weight:700; font-size:14.5px;}
+  .group-head .cat-count{font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); background:var(--bg-raised); padding:2px 7px; border-radius:10px;}
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:11px;}
+  .note{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:13px; display:flex; flex-direction:column; gap:7px; transition:background .15s,border-color .15s; position:relative;}
+  .note:hover{background:var(--card-hover); border-color:#454c53;}
+  .note.pinned{border-color:var(--amber);}
+  .note.selected{outline:2px solid var(--teal);}
+  .note-top{display:flex; justify-content:space-between; align-items:flex-start; gap:6px;}
+  .note-code{font-family:var(--mono); font-size:10.5px; color:var(--amber); background:rgba(212,162,76,.1); border:1px solid rgba(212,162,76,.35); padding:2px 6px; border-radius:4px; white-space:nowrap;}
+  .note-nb{font-size:10px; color:var(--ink-faint); font-family:var(--mono);}
+  .note-title{font-weight:600; font-size:14px;}
+  .note-body{font-size:13px; color:var(--ink-dim); white-space:pre-wrap; word-break:break-word; max-height:110px; overflow:hidden;}
+  .note-body.expanded{max-height:none;}
+  .note-tags{display:flex; flex-wrap:wrap; gap:4px;}
+  .tag-chip{font-size:10px; background:var(--bg-raised); color:var(--ink-dim); padding:2px 7px; border-radius:9px; font-family:var(--mono);}
+  .note-foot{display:flex; justify-content:space-between; align-items:center; margin-top:2px;}
+  .note-date{font-size:10.5px; color:var(--ink-faint);}
+  .note-actions{display:flex; gap:3px; align-items:center;}
+  .note-select{position:absolute; top:10px; left:10px; display:none;}
+  .note.select-mode .note-select{display:block;}
+  .note.select-mode{padding-left:30px;}
+
+  .empty{text-align:center; padding:60px 20px; color:var(--ink-faint);}
+  .empty .big{font-size:32px; margin-bottom:10px;}
+
+  .load-more-row{display:flex; justify-content:center; margin-top:10px;}
+
+  /* edit mode */
+  .note.editing{grid-column:1/-1;}
+  .note.editing textarea{width:100%; min-height:100px; margin-top:4px;}
+  .note.editing .edit-row{display:flex; gap:8px; margin-top:8px;}
+
+  /* ===== Modal ===== */
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--bg-raised); border:1px solid var(--line); border-radius:10px; padding:22px; width:100%; max-width:560px;}
+  .modal.wide{max-width:820px;}
+  .modal h3{font-size:15px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;}
+  .modal h3 button{background:none; border:none; color:var(--ink-faint); font-size:18px;}
+  .modal-body{display:flex; flex-direction:column; gap:10px; max-height:70vh; overflow:auto;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+  .mini-row{display:flex; gap:8px; align-items:center; justify-content:space-between; background:var(--card); padding:8px 10px; border-radius:6px; border:1px solid var(--line);}
+  .mini-row .grow{flex:1;}
+  .swatches{display:flex; gap:6px;}
+  .swatch{width:16px; height:16px; border-radius:50%; cursor:pointer; border:2px solid transparent;}
+  .swatch.sel{border-color:var(--ink);}
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px;}
+  .stat-box{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px;}
+  .stat-box .num{font-family:var(--mono); font-size:22px; font-weight:700; color:var(--teal);}
+  .stat-box .lbl{font-size:11px; color:var(--ink-faint); margin-top:2px;}
+  .read-doc{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:20px; font-size:14.5px; line-height:1.9; white-space:pre-wrap;}
+  .read-doc .rd-num{font-family:var(--mono); color:var(--amber); font-size:11px; margin-right:8px;}
+  .read-doc p{margin-bottom:16px;}
+
+  footer{text-align:center; padding:20px; color:var(--ink-faint); font-size:10.5px; font-family:var(--mono);}
+  .kbd{background:var(--card); border:1px solid var(--line); border-radius:3px; padding:0 5px; font-family:var(--mono); font-size:10px;}
+
+  @media print{
+    .sidebar,.topbar,.composer,.toolbar,.bulk-bar,footer,.modal-overlay:not(.print-target){display:none !important;}
   }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="brand">
-    <span class="mark">§</span>
-    <h1>Ledger</h1>
-  </div>
-  <div class="stats">
-    <span>Notes <b id="statNotes">0</b></span>
-    <span>Categories <b id="statCats">0</b></span>
-  </div>
-</header>
+<div class="shell">
 
-<div class="wrap">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><span class="mark">§</span><h1>Ledger</h1></div>
 
-  <!-- Composer -->
-  <div class="composer">
-    <h2>New Entry</h2>
-    <div class="row">
-      <div class="field code-num">
-        <label>Number</label>
-        <input type="text" id="inputNumber" placeholder="e.g. 1, 2a, 07">
+    <div class="side-section">
+      <div class="side-label">Overview</div>
+      <div class="nb-item special" data-nb="__all__"><span class="nb-dot" style="background:var(--ink-faint);"></span><span class="nb-name">All Notebooks</span></div>
+      <div class="nb-item special" data-nb="__trash__"><span class="nb-dot" style="background:var(--red);"></span><span class="nb-name">Trash</span><span class="nb-count" id="trashCount">0</span></div>
+    </div>
+
+    <div class="side-section" style="flex:1; min-height:0; overflow-y:auto;">
+      <div class="side-label">Notebooks</div>
+      <div id="notebookList"></div>
+      <button class="side-btn" id="addNotebookBtn">+ New notebook</button>
+    </div>
+
+    <div class="side-bottom">
+      <button class="side-btn" id="statsBtn">▦ Dashboard</button>
+      <button class="side-btn" id="dataBtn">⇅ Import / Export</button>
+      <div class="theme-toggle">
+        <span class="side-label" style="margin:0;">Theme</span>
+        <div>
+          <button id="themeDark" class="btn-sm">Dark</button>
+          <button id="themeLight" class="btn-sm">Light</button>
+        </div>
       </div>
-      <div class="field code-cat">
-        <label>Falls under</label>
-        <select id="inputCategory"></select>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="menu-btn" id="menuBtn">☰</button>
+        <div>
+          <div class="ctx-title" id="ctxTitle">All Notebooks</div>
+          <div class="ctx-sub" id="ctxSub">0 entries</div>
+        </div>
       </div>
-      <div class="field title">
-        <label>Title</label>
-        <input type="text" id="inputTitle" placeholder="Note title">
+      <div class="topbar-right">
+        <button class="btn btn-ghost btn-sm" id="readViewBtn">📖 Read view</button>
+        <button class="btn btn-ghost btn-sm" id="manageCatBtn">🏷 Categories</button>
+        <button class="btn btn-ghost btn-sm" id="selectModeBtn">☑ Select</button>
       </div>
     </div>
-    <div class="new-cat-row" id="newCatRow">
-      <input type="text" id="newCatInput" placeholder="New category name">
-      <button class="btn btn-primary btn-small" id="confirmNewCat">Add</button>
-      <button class="btn btn-ghost btn-small" id="cancelNewCat">Cancel</button>
+
+    <div class="wrap">
+
+      <!-- Composer -->
+      <div class="composer" id="composerBox">
+        <h2>New Entry</h2>
+        <div class="row">
+          <div class="field num"><label>Number</label><input type="text" id="inputNumber" placeholder="1, 2a, 07..."></div>
+          <div class="field cat"><label>Falls under</label><select id="inputCategory"></select></div>
+          <div class="field title"><label>Title (optional)</label><input type="text" id="inputTitle" placeholder="Short label"></div>
+          <div class="field tags"><label>Tags (comma separated)</label><input type="text" id="inputTags" placeholder="idea, urgent, quote..."></div>
+        </div>
+        <div class="new-cat-row" id="newCatRow">
+          <input type="text" id="newCatInput" placeholder="New category name">
+          <button class="btn btn-primary btn-sm" id="confirmNewCat">Add</button>
+          <button class="btn btn-ghost btn-sm" id="cancelNewCat">Cancel</button>
+        </div>
+        <div class="field" style="margin-top:6px;"><label>Content</label><textarea id="inputBody" placeholder="Write anything — this is treated as a paragraph, not a standalone note."></textarea></div>
+        <div class="composer-foot">
+          <span class="hint" id="composerHint">Draft auto-saves locally as you type.</span>
+          <div style="display:flex; align-items:center; gap:14px;">
+            <label class="chk"><input type="checkbox" id="pinOnSave"> Pin</label>
+            <span class="composer-meta"><span id="wordCount">0 words</span></span>
+            <button class="btn btn-primary" id="saveNoteBtn">Save Entry <span class="kbd" style="margin-left:6px;">⌘⏎</span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <input type="text" id="searchInput" placeholder="Search title, body, number, tag...">
+          <select id="searchScope"><option value="current">This notebook</option><option value="all">Everywhere</option></select>
+          <select id="filterCategory"><option value="__all__">All categories</option></select>
+          <select id="filterTag"><option value="__all__">All tags</option></select>
+          <select id="filterStatus">
+            <option value="active">Active</option>
+            <option value="pinned">Pinned only</option>
+            <option value="archived">Archived only</option>
+          </select>
+          <select id="sortSelect">
+            <option value="number">By number</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="title">By title (A–Z)</option>
+            <option value="updated">Recently edited</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <div class="view-toggle">
+            <button id="viewGrouped" class="active">Grouped</button>
+            <button id="viewFlat">Flat</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bulk-bar" id="bulkBar">
+        <span id="bulkCount">0 selected</span>
+        <select id="bulkMoveNb"></select>
+        <select id="bulkMoveCat"></select>
+        <button class="btn btn-ghost btn-sm" id="bulkPin">Pin</button>
+        <button class="btn btn-ghost btn-sm" id="bulkArchive">Archive</button>
+        <button class="btn btn-danger btn-sm" id="bulkTrash">Trash</button>
+        <button class="btn btn-ghost btn-sm" id="bulkClear">Clear selection</button>
+      </div>
+
+      <div id="notesContainer"></div>
+
     </div>
-    <div class="field" style="margin-top:6px;">
-      <label>Note</label>
-      <textarea id="inputBody" placeholder="Write anything..."></textarea>
-    </div>
-    <div class="composer-actions">
-      <span class="hint" id="composerHint">Pick a number and a category — or use "None" / "Random" if it doesn't fit anywhere.</span>
-      <button class="btn btn-primary" id="saveNoteBtn">Save Note</button>
-    </div>
+
+    <footer>LEDGER · INDEXEDDB · LOCAL-ONLY · SCALES TO 10,000+ ENTRIES</footer>
   </div>
-
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <div class="toolbar-left">
-      <input type="text" id="searchInput" placeholder="Search title, body, number, category...">
-      <select id="filterCategory"><option value="__all__">All categories</option></select>
-      <select id="sortSelect">
-        <option value="newest">Newest first</option>
-        <option value="oldest">Oldest first</option>
-        <option value="number">By number</option>
-        <option value="title">By title (A–Z)</option>
-      </select>
-    </div>
-    <div class="toolbar-right">
-      <button class="btn btn-ghost btn-small" id="exportBtn">Export JSON</button>
-      <button class="btn btn-ghost btn-small" id="importBtn">Import JSON</button>
-      <input type="file" id="importFile" accept="application/json" style="display:none;">
-      <button class="btn btn-danger btn-small" id="clearAllBtn">Clear All</button>
-    </div>
-  </div>
-
-  <!-- Notes -->
-  <div id="notesContainer"></div>
-
 </div>
 
-<footer>LEDGER · LOCAL STORAGE · NO ACCOUNT · NO SYNC</footer>
+<!-- MODAL: new notebook -->
+<div class="modal-overlay" id="modalNotebook">
+  <div class="modal">
+    <h3>New notebook <button data-close>✕</button></h3>
+    <div class="modal-body">
+      <div class="field"><label>Name</label><input type="text" id="nbNameInput" placeholder="e.g. Book Notes, Project Ideas"></div>
+      <div class="field"><label>Color</label><div class="swatches" id="nbColorSwatches"></div></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close>Cancel</button>
+      <button class="btn btn-primary" id="createNotebookBtn">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: manage categories -->
+<div class="modal-overlay" id="modalCategories">
+  <div class="modal">
+    <h3>Categories <button data-close>✕</button></h3>
+    <div class="modal-body" id="catListBody"></div>
+    <div class="row" style="margin-top:6px;">
+      <input type="text" id="catNewName" placeholder="New category name" style="flex:1;">
+      <button class="btn btn-primary btn-sm" id="catAddBtn">Add</button>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" data-close>Close</button></div>
+  </div>
+</div>
+
+<!-- MODAL: dashboard -->
+<div class="modal-overlay" id="modalStats">
+  <div class="modal wide">
+    <h3>Dashboard <button data-close>✕</button></h3>
+    <div class="modal-body">
+      <div class="stat-grid" id="statGrid"></div>
+      <div class="side-label" style="margin-top:8px;">Entries per notebook</div>
+      <div id="statPerNotebook" style="display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" data-close>Close</button></div>
+  </div>
+</div>
+
+<!-- MODAL: import/export -->
+<div class="modal-overlay" id="modalData">
+  <div class="modal">
+    <h3>Import / Export <button data-close>✕</button></h3>
+    <div class="modal-body">
+      <div class="mini-row"><span class="grow">Export current notebook (JSON)</span><button class="btn btn-ghost btn-sm" id="exportCurrentBtn">Export</button></div>
+      <div class="mini-row"><span class="grow">Export everything (JSON)</span><button class="btn btn-ghost btn-sm" id="exportAllBtn">Export</button></div>
+      <div class="mini-row"><span class="grow">Export current notebook (plain text)</span><button class="btn btn-ghost btn-sm" id="exportTxtBtn">Export</button></div>
+      <div class="mini-row"><span class="grow">Import from JSON backup</span><button class="btn btn-ghost btn-sm" id="importBtn">Choose file</button></div>
+      <input type="file" id="importFile" accept="application/json" style="display:none;">
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" data-close>Close</button></div>
+  </div>
+</div>
+
+<!-- MODAL: read view -->
+<div class="modal-overlay" id="modalRead">
+  <div class="modal wide print-target">
+    <h3><span id="readTitle">Read view</span><button data-close>✕</button></h3>
+    <div class="row">
+      <select id="readCategorySelect" style="flex:1;"></select>
+      <button class="btn btn-ghost btn-sm" id="printReadBtn">🖨 Print</button>
+    </div>
+    <div class="modal-body" style="margin-top:10px;">
+      <div class="read-doc" id="readDocBody"></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" data-close>Close</button></div>
+  </div>
+</div>
 
 <script>
 (function(){
-  "use strict";
+"use strict";
 
-  const STORAGE_KEY = "ledger_notes_v1";
-  const CATS_KEY = "ledger_categories_v1";
-  const DEFAULT_CATS = ["None", "Random"];
+/* ===================== IndexedDB layer ===================== */
+const DB_NAME = "LedgerDB", DB_VERSION = 1;
+let db;
 
-  let notes = [];
-  let categories = [];
-
-  // ---------- Persistence ----------
-  function load(){
-    try{
-      notes = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    }catch(e){ notes = []; }
-    try{
-      categories = JSON.parse(localStorage.getItem(CATS_KEY)) || [];
-    }catch(e){ categories = []; }
-    DEFAULT_CATS.forEach(c => { if(!categories.includes(c)) categories.push(c); });
-    // ensure any category referenced by a note exists in the list
-    notes.forEach(n => { if(n.category && !categories.includes(n.category)) categories.push(n.category); });
-  }
-  function saveNotes(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); }
-  function saveCats(){ localStorage.setItem(CATS_KEY, JSON.stringify(categories)); }
-
-  // ---------- Elements ----------
-  const inputNumber = document.getElementById('inputNumber');
-  const inputCategory = document.getElementById('inputCategory');
-  const inputTitle = document.getElementById('inputTitle');
-  const inputBody = document.getElementById('inputBody');
-  const saveNoteBtn = document.getElementById('saveNoteBtn');
-  const newCatRow = document.getElementById('newCatRow');
-  const newCatInput = document.getElementById('newCatInput');
-  const confirmNewCat = document.getElementById('confirmNewCat');
-  const cancelNewCat = document.getElementById('cancelNewCat');
-  const searchInput = document.getElementById('searchInput');
-  const filterCategory = document.getElementById('filterCategory');
-  const sortSelect = document.getElementById('sortSelect');
-  const notesContainer = document.getElementById('notesContainer');
-  const statNotes = document.getElementById('statNotes');
-  const statCats = document.getElementById('statCats');
-  const exportBtn = document.getElementById('exportBtn');
-  const importBtn = document.getElementById('importBtn');
-  const importFile = document.getElementById('importFile');
-  const clearAllBtn = document.getElementById('clearAllBtn');
-
-  const NEW_CAT_VALUE = "__new__";
-
-  // ---------- Category select rendering ----------
-  function renderCategoryOptions(){
-    // composer select
-    inputCategory.innerHTML = "";
-    categories.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c; opt.textContent = c;
-      inputCategory.appendChild(opt);
-    });
-    const newOpt = document.createElement('option');
-    newOpt.value = NEW_CAT_VALUE; newOpt.textContent = "+ New category...";
-    inputCategory.appendChild(newOpt);
-
-    // filter select
-    const prevVal = filterCategory.value || "__all__";
-    filterCategory.innerHTML = '<option value="__all__">All categories</option>';
-    categories.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c; opt.textContent = c;
-      filterCategory.appendChild(opt);
-    });
-    if([...filterCategory.options].some(o => o.value === prevVal)){
-      filterCategory.value = prevVal;
-    }
-  }
-
-  inputCategory.addEventListener('change', () => {
-    if(inputCategory.value === NEW_CAT_VALUE){
-      newCatRow.classList.add('show');
-      newCatInput.focus();
-    } else {
-      newCatRow.classList.remove('show');
-    }
-  });
-
-  confirmNewCat.addEventListener('click', () => {
-    const name = newCatInput.value.trim();
-    if(!name) return;
-    if(!categories.includes(name)){
-      categories.push(name);
-      saveCats();
-    }
-    renderCategoryOptions();
-    inputCategory.value = name;
-    newCatRow.classList.remove('show');
-    newCatInput.value = "";
-  });
-  cancelNewCat.addEventListener('click', () => {
-    newCatRow.classList.remove('show');
-    newCatInput.value = "";
-    inputCategory.value = categories[0] || "None";
-  });
-
-  // ---------- Save note ----------
-  function genId(){
-    return 'n_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
-  }
-
-  saveNoteBtn.addEventListener('click', () => {
-    const number = inputNumber.value.trim();
-    let category = inputCategory.value;
-    if(category === NEW_CAT_VALUE){
-      alert("Finish adding your new category first (or press Add / Cancel).");
-      return;
-    }
-    const title = inputTitle.value.trim();
-    const body = inputBody.value;
-
-    if(!title && !body.trim()){
-      alert("Give the note a title or some content — can't save a completely empty note.");
-      return;
-    }
-
-    notes.unshift({
-      id: genId(),
-      number: number || "—",
-      category: category || "None",
-      title: title || "(untitled)",
-      body: body,
-      created: Date.now(),
-      updated: Date.now()
-    });
-    saveNotes();
-
-    inputNumber.value = "";
-    inputTitle.value = "";
-    inputBody.value = "";
-    renderNotes();
-  });
-
-  // ---------- Rendering notes ----------
-  function fmtDate(ts){
-    const d = new Date(ts);
-    return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'}) + ' · ' +
-           d.toLocaleTimeString(undefined,{hour:'2-digit', minute:'2-digit'});
-  }
-
-  function getFilteredSorted(){
-    let list = notes.slice();
-    const q = searchInput.value.trim().toLowerCase();
-    if(q){
-      list = list.filter(n =>
-        (n.title||"").toLowerCase().includes(q) ||
-        (n.body||"").toLowerCase().includes(q) ||
-        (n.number||"").toLowerCase().includes(q) ||
-        (n.category||"").toLowerCase().includes(q)
-      );
-    }
-    const catFilter = filterCategory.value;
-    if(catFilter && catFilter !== "__all__"){
-      list = list.filter(n => n.category === catFilter);
-    }
-    const sortMode = sortSelect.value;
-    if(sortMode === "newest") list.sort((a,b)=>b.created-a.created);
-    else if(sortMode === "oldest") list.sort((a,b)=>a.created-b.created);
-    else if(sortMode === "title") list.sort((a,b)=>a.title.localeCompare(b.title));
-    else if(sortMode === "number") list.sort((a,b)=>{
-      const na = parseFloat(a.number), nb = parseFloat(b.number);
-      const aNum = isNaN(na) ? Infinity : na;
-      const bNum = isNaN(nb) ? Infinity : nb;
-      if(aNum !== bNum) return aNum - bNum;
-      return (a.number||"").localeCompare(b.number||"");
-    });
-    return list;
-  }
-
-  function groupByCategory(list){
-    const map = {};
-    list.forEach(n => {
-      const c = n.category || "None";
-      if(!map[c]) map[c] = [];
-      map[c].push(n);
-    });
-    return map;
-  }
-
-  function escapeHtml(str){
-    return (str||"").replace(/[&<>"']/g, m => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[m]));
-  }
-
-  function renderNotes(){
-    const list = getFilteredSorted();
-    statNotes.textContent = notes.length;
-    statCats.textContent = categories.length;
-
-    notesContainer.innerHTML = "";
-
-    if(list.length === 0){
-      notesContainer.innerHTML = `
-        <div class="empty">
-          <div class="big">□</div>
-          <div>${notes.length === 0 ? "No notes yet — add your first entry above." : "Nothing matches your search or filter."}</div>
-        </div>`;
-      return;
-    }
-
-    // If filtering to one category or sorting by number/title/date, still group by category for structure,
-    // unless a single category filter is active — then just list flat.
-    const singleCat = filterCategory.value !== "__all__";
-    const groups = singleCat ? {[filterCategory.value]: list} : groupByCategory(list);
-
-    Object.keys(groups).forEach(catName => {
-      const groupNotes = groups[catName];
-      const groupWrap = document.createElement('div');
-      groupWrap.className = 'group';
-
-      const head = document.createElement('div');
-      head.className = 'group-head';
-      head.innerHTML = `<span class="cat-name">${escapeHtml(catName)}</span><span class="cat-count">${groupNotes.length}</span>`;
-      groupWrap.appendChild(head);
-
-      const cardsWrap = document.createElement('div');
-      cardsWrap.className = 'cards';
-
-      groupNotes.forEach(n => {
-        cardsWrap.appendChild(renderNoteCard(n));
-      });
-
-      groupWrap.appendChild(cardsWrap);
-      notesContainer.appendChild(groupWrap);
-    });
-  }
-
-  function renderNoteCard(n){
-    const el = document.createElement('div');
-    el.className = 'note';
-    el.dataset.id = n.id;
-
-    el.innerHTML = `
-      <div class="note-top">
-        <span class="note-code">${escapeHtml(n.number)} · ${escapeHtml(n.category)}</span>
-      </div>
-      <div class="note-title">${escapeHtml(n.title)}</div>
-      <div class="note-body">${escapeHtml(n.body)}</div>
-      <div class="note-foot">
-        <span class="note-date">${fmtDate(n.updated)}</span>
-        <span class="note-actions">
-          <button class="icon-btn" data-action="expand">expand</button>
-          <button class="icon-btn" data-action="edit">edit</button>
-          <button class="icon-btn danger" data-action="delete">delete</button>
-        </span>
-      </div>
-    `;
-
-    el.querySelector('[data-action="expand"]').addEventListener('click', (e) => {
-      const bodyEl = el.querySelector('.note-body');
-      bodyEl.classList.toggle('expanded');
-      e.target.textContent = bodyEl.classList.contains('expanded') ? 'collapse' : 'expand';
-    });
-
-    el.querySelector('[data-action="delete"]').addEventListener('click', () => {
-      if(confirm(`Delete "${n.title}"? This can't be undone.`)){
-        notes = notes.filter(x => x.id !== n.id);
-        saveNotes();
-        renderNotes();
+function idbOpen(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e)=>{
+      const d = e.target.result;
+      if(!d.objectStoreNames.contains('notebooks')) d.createObjectStore('notebooks',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('categories')){
+        const s = d.createObjectStore('categories',{keyPath:'id'});
+        s.createIndex('notebookId','notebookId');
       }
-    });
-
-    el.querySelector('[data-action="edit"]').addEventListener('click', () => {
-      openEditMode(el, n);
-    });
-
-    return el;
-  }
-
-  function openEditMode(el, n){
-    el.classList.add('editing');
-    const catOptions = categories.map(c =>
-      `<option value="${escapeHtml(c)}" ${c===n.category?'selected':''}>${escapeHtml(c)}</option>`
-    ).join('');
-
-    el.innerHTML = `
-      <div class="row" style="margin-bottom:6px;">
-        <div class="field code-num">
-          <label>Number</label>
-          <input type="text" class="edit-number" value="${escapeHtml(n.number)}">
-        </div>
-        <div class="field" style="flex:1;">
-          <label>Category</label>
-          <select class="edit-category">${catOptions}</select>
-        </div>
-      </div>
-      <div class="field">
-        <label>Title</label>
-        <input type="text" class="edit-title" value="${escapeHtml(n.title)}">
-      </div>
-      <textarea class="edit-body">${escapeHtml(n.body)}</textarea>
-      <div class="edit-row">
-        <button class="btn btn-primary btn-small" data-action="save">Save changes</button>
-        <button class="btn btn-ghost btn-small" data-action="cancel">Cancel</button>
-      </div>
-    `;
-
-    el.querySelector('[data-action="save"]').addEventListener('click', () => {
-      n.number = el.querySelector('.edit-number').value.trim() || "—";
-      n.category = el.querySelector('.edit-category').value;
-      n.title = el.querySelector('.edit-title').value.trim() || "(untitled)";
-      n.body = el.querySelector('.edit-body').value;
-      n.updated = Date.now();
-      saveNotes();
-      renderNotes();
-    });
-
-    el.querySelector('[data-action="cancel"]').addEventListener('click', () => {
-      renderNotes();
-    });
-  }
-
-  // ---------- Toolbar events ----------
-  searchInput.addEventListener('input', renderNotes);
-  filterCategory.addEventListener('change', renderNotes);
-  sortSelect.addEventListener('change', renderNotes);
-
-  // ---------- Export / Import ----------
-  exportBtn.addEventListener('click', () => {
-    const data = { notes, categories, exportedAt: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ledger-backup-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  importBtn.addEventListener('click', () => importFile.click());
-  importFile.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try{
-        const data = JSON.parse(evt.target.result);
-        if(!Array.isArray(data.notes)) throw new Error("bad format");
-        const mode = confirm("Click OK to MERGE with existing notes, or Cancel to REPLACE everything.");
-        if(mode){
-          notes = notes.concat(data.notes);
-          (data.categories||[]).forEach(c => { if(!categories.includes(c)) categories.push(c); });
-        } else {
-          notes = data.notes;
-          categories = data.categories && data.categories.length ? data.categories : DEFAULT_CATS.slice();
-          DEFAULT_CATS.forEach(c => { if(!categories.includes(c)) categories.push(c); });
-        }
-        saveNotes(); saveCats();
-        renderCategoryOptions();
-        renderNotes();
-      }catch(err){
-        alert("Couldn't read that file — make sure it's a Ledger JSON export.");
+      if(!d.objectStoreNames.contains('entries')){
+        const s = d.createObjectStore('entries',{keyPath:'id'});
+        s.createIndex('notebookId','notebookId');
+        s.createIndex('categoryId','categoryId');
+        s.createIndex('trashed','trashed');
       }
     };
-    reader.readAsText(file);
-    importFile.value = "";
+    req.onsuccess = (e)=>resolve(e.target.result);
+    req.onerror = (e)=>reject(e);
   });
+}
+function tx(store,mode){ return db.transaction(store,mode).objectStore(store); }
+function idbGetAll(store){
+  return new Promise((resolve,reject)=>{
+    const r = tx(store,'readonly').getAll();
+    r.onsuccess=()=>resolve(r.result); r.onerror=(e)=>reject(e);
+  });
+}
+function idbPut(store,obj){
+  return new Promise((resolve,reject)=>{
+    const r = tx(store,'readwrite').put(obj);
+    r.onsuccess=()=>resolve(obj); r.onerror=(e)=>reject(e);
+  });
+}
+function idbDelete(store,id){
+  return new Promise((resolve,reject)=>{
+    const r = tx(store,'readwrite').delete(id);
+    r.onsuccess=()=>resolve(); r.onerror=(e)=>reject(e);
+  });
+}
 
-  clearAllBtn.addEventListener('click', () => {
-    if(confirm("Delete ALL notes? Categories will be kept. This can't be undone.")){
-      notes = [];
-      saveNotes();
-      renderNotes();
+/* ===================== State ===================== */
+let notebooks=[], categories=[], entries=[];
+let currentNotebookId = "__all__";
+let viewMode = "grouped";
+let selectMode = false;
+let selectedIds = new Set();
+let groupLimits = {};
+let flatLimit = 60;
+const NEW_CAT_VALUE = "__new__";
+const PALETTE = ["#d4a24c","#5eb1a3","#c86b5a","#6f9bd1","#a689c9","#8bbf5a","#d17aa8","#7a8fa6"];
+
+function uid(prefix){ return prefix+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
+
+/* ===================== Bootstrapping ===================== */
+async function boot(){
+  db = await idbOpen();
+  notebooks = await idbGetAll('notebooks');
+  categories = await idbGetAll('categories');
+  entries = await idbGetAll('entries');
+
+  if(notebooks.length===0){
+    const nb = {id:uid('nb'), name:"General", color:PALETTE[0], createdAt:Date.now()};
+    notebooks.push(nb);
+    await idbPut('notebooks',nb);
+    for(const name of ["None","Random"]){
+      const c = {id:uid('cat'), notebookId:nb.id, name, color:"#8a8579", createdAt:Date.now()};
+      categories.push(c);
+      await idbPut('categories',c);
+    }
+    currentNotebookId = nb.id;
+  } else {
+    currentNotebookId = notebooks[0].id;
+  }
+
+  const savedTheme = localStorage.getItem('ledger_theme');
+  if(savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeButtons();
+
+  const draft = localStorage.getItem('ledger_draft');
+  if(draft){
+    try{
+      const d = JSON.parse(draft);
+      inputNumber.value=d.number||""; inputTitle.value=d.title||"";
+      inputTags.value=d.tags||""; inputBody.value=d.body||"";
+    }catch(e){}
+  }
+
+  renderSidebar();
+  renderCategorySelects();
+  updateWordCount();
+  renderAll();
+}
+
+/* ===================== Category helpers ===================== */
+function catsForNotebook(nbId){ return categories.filter(c=>c.notebookId===nbId); }
+function catById(id){ return categories.find(c=>c.id===id); }
+function nbById(id){ return notebooks.find(n=>n.id===id); }
+
+/* ===================== Elements ===================== */
+const inputNumber=document.getElementById('inputNumber');
+const inputCategory=document.getElementById('inputCategory');
+const inputTitle=document.getElementById('inputTitle');
+const inputTags=document.getElementById('inputTags');
+const inputBody=document.getElementById('inputBody');
+const saveNoteBtn=document.getElementById('saveNoteBtn');
+const pinOnSave=document.getElementById('pinOnSave');
+const newCatRow=document.getElementById('newCatRow');
+const newCatInput=document.getElementById('newCatInput');
+const confirmNewCat=document.getElementById('confirmNewCat');
+const cancelNewCat=document.getElementById('cancelNewCat');
+const wordCountEl=document.getElementById('wordCount');
+
+const searchInput=document.getElementById('searchInput');
+const searchScope=document.getElementById('searchScope');
+const filterCategory=document.getElementById('filterCategory');
+const filterTag=document.getElementById('filterTag');
+const filterStatus=document.getElementById('filterStatus');
+const sortSelect=document.getElementById('sortSelect');
+const notesContainer=document.getElementById('notesContainer');
+const ctxTitle=document.getElementById('ctxTitle');
+const ctxSub=document.getElementById('ctxSub');
+const notebookList=document.getElementById('notebookList');
+const trashCount=document.getElementById('trashCount');
+
+const bulkBar=document.getElementById('bulkBar');
+const bulkCount=document.getElementById('bulkCount');
+const bulkMoveNb=document.getElementById('bulkMoveNb');
+const bulkMoveCat=document.getElementById('bulkMoveCat');
+
+const viewGroupedBtn=document.getElementById('viewGrouped');
+const viewFlatBtn=document.getElementById('viewFlat');
+const selectModeBtn=document.getElementById('selectModeBtn');
+const menuBtn=document.getElementById('menuBtn');
+const sidebar=document.getElementById('sidebar');
+
+/* ===================== Sidebar rendering ===================== */
+function renderSidebar(){
+  notebookList.innerHTML="";
+  notebooks.forEach(nb=>{
+    const count = entries.filter(e=>e.notebookId===nb.id && !e.trashed).length;
+    const div = document.createElement('div');
+    div.className = 'nb-item' + (currentNotebookId===nb.id ? ' active':'');
+    div.dataset.nb = nb.id;
+    div.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${escapeHtml(nb.name)}</span><span class="nb-count">${count}</span>`;
+    div.addEventListener('click', ()=>switchNotebook(nb.id));
+    div.addEventListener('dblclick', ()=>openNotebookMenu(nb));
+    notebookList.appendChild(div);
+  });
+  document.querySelectorAll('.nb-item.special').forEach(el=>{
+    el.classList.toggle('active', el.dataset.nb===currentNotebookId);
+  });
+  trashCount.textContent = entries.filter(e=>e.trashed).length;
+}
+document.querySelectorAll('.nb-item.special').forEach(el=>{
+  el.addEventListener('click', ()=>switchNotebook(el.dataset.nb));
+});
+
+function switchNotebook(id){
+  currentNotebookId = id;
+  groupLimits = {}; flatLimit = 60;
+  renderSidebar(); renderCategorySelects(); renderAll();
+  if(window.innerWidth<=860) sidebar.classList.remove('open');
+}
+
+function openNotebookMenu(nb){
+  const action = prompt(`Notebook: "${nb.name}"\n\nType RENAME to rename, DELETE to delete, or cancel.`, "");
+  if(!action) return;
+  const a = action.trim().toUpperCase();
+  if(a==="RENAME"){
+    const newName = prompt("New notebook name:", nb.name);
+    if(newName && newName.trim()){ nb.name = newName.trim(); idbPut('notebooks',nb); renderSidebar(); renderAll(); }
+  } else if(a==="DELETE"){
+    if(confirm(`Delete notebook "${nb.name}" and ALL its entries permanently? This cannot be undone.`)){
+      if(confirm("Really sure? This is permanent.")) deleteNotebookCascade(nb.id);
+    }
+  }
+}
+
+async function deleteNotebookCascade(nbId){
+  const toDelete = entries.filter(e=>e.notebookId===nbId);
+  for(const e of toDelete) await idbDelete('entries', e.id);
+  entries = entries.filter(e=>e.notebookId!==nbId);
+  const catsToDelete = categories.filter(c=>c.notebookId===nbId);
+  for(const c of catsToDelete) await idbDelete('categories', c.id);
+  categories = categories.filter(c=>c.notebookId!==nbId);
+  await idbDelete('notebooks', nbId);
+  notebooks = notebooks.filter(n=>n.id!==nbId);
+  if(currentNotebookId===nbId){
+    currentNotebookId = notebooks.length ? notebooks[0].id : null;
+    if(!currentNotebookId){
+      const nb = {id:uid('nb'), name:"General", color:PALETTE[0], createdAt:Date.now()};
+      notebooks.push(nb); await idbPut('notebooks',nb);
+      for(const name of ["None","Random"]){
+        const c={id:uid('cat'), notebookId:nb.id, name, color:"#8a8579", createdAt:Date.now()};
+        categories.push(c); await idbPut('categories',c);
+      }
+      currentNotebookId = nb.id;
+    }
+  }
+  renderSidebar(); renderCategorySelects(); renderAll();
+}
+
+document.getElementById('addNotebookBtn').addEventListener('click', ()=>openModal('modalNotebook'));
+menuBtn.addEventListener('click', ()=>sidebar.classList.toggle('open'));
+
+const swatchWrap = document.getElementById('nbColorSwatches');
+let pickedColor = PALETTE[0];
+PALETTE.forEach(c=>{
+  const s=document.createElement('div'); s.className='swatch'+(c===pickedColor?' sel':'');
+  s.style.background=c; s.dataset.c=c;
+  s.addEventListener('click',()=>{
+    pickedColor=c;
+    swatchWrap.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel'));
+    s.classList.add('sel');
+  });
+  swatchWrap.appendChild(s);
+});
+document.getElementById('createNotebookBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('nbNameInput').value.trim();
+  if(!name){ alert("Give the notebook a name."); return; }
+  const nb = {id:uid('nb'), name, color:pickedColor, createdAt:Date.now()};
+  notebooks.push(nb); await idbPut('notebooks',nb);
+  for(const cn of ["None","Random"]){
+    const c={id:uid('cat'), notebookId:nb.id, name:cn, color:"#8a8579", createdAt:Date.now()};
+    categories.push(c); await idbPut('categories',c);
+  }
+  document.getElementById('nbNameInput').value="";
+  closeModal('modalNotebook');
+  switchNotebook(nb.id);
+});
+
+/* ===================== Category select rendering ===================== */
+function renderCategorySelects(){
+  inputCategory.innerHTML="";
+  const realNbCats = catsForNotebook(currentNotebookId) || [];
+  realNbCats.forEach(c=>{
+    const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; inputCategory.appendChild(o);
+  });
+  const newOpt=document.createElement('option'); newOpt.value=NEW_CAT_VALUE; newOpt.textContent="+ New category..."; inputCategory.appendChild(newOpt);
+
+  const prevFilter = filterCategory.value;
+  filterCategory.innerHTML='<option value="__all__">All categories</option>';
+  const filterSourceCats = (currentNotebookId==="__all__"||currentNotebookId==="__trash__") ? categories : realNbCats;
+  filterSourceCats.forEach(c=>{
+    const o=document.createElement('option'); o.value=c.id;
+    o.textContent = (currentNotebookId==="__all__"||currentNotebookId==="__trash__") ? `${c.name} (${(nbById(c.notebookId)||{}).name||'?'})` : c.name;
+    filterCategory.appendChild(o);
+  });
+  if([...filterCategory.options].some(o=>o.value===prevFilter)) filterCategory.value=prevFilter;
+
+  renderTagFilter();
+  suggestNextNumber();
+}
+
+function renderTagFilter(){
+  const prev = filterTag.value;
+  const scope = getScopedEntries();
+  const tagSet = new Set();
+  scope.forEach(e=>(e.tags||[]).forEach(t=>tagSet.add(t)));
+  filterTag.innerHTML='<option value="__all__">All tags</option>';
+  [...tagSet].sort().forEach(t=>{
+    const o=document.createElement('option'); o.value=t; o.textContent=t; filterTag.appendChild(o);
+  });
+  if([...filterTag.options].some(o=>o.value===prev)) filterTag.value=prev;
+}
+
+inputCategory.addEventListener('change', ()=>{
+  if(inputCategory.value===NEW_CAT_VALUE){ newCatRow.classList.add('show'); newCatInput.focus(); }
+  else { newCatRow.classList.remove('show'); suggestNextNumber(); }
+});
+confirmNewCat.addEventListener('click', async ()=>{
+  const name = newCatInput.value.trim();
+  if(!name) return;
+  const c = {id:uid('cat'), notebookId:currentNotebookId, name, color: PALETTE[categories.length % PALETTE.length], createdAt:Date.now()};
+  categories.push(c); await idbPut('categories',c);
+  renderCategorySelects();
+  inputCategory.value = c.id;
+  newCatRow.classList.remove('show'); newCatInput.value="";
+});
+cancelNewCat.addEventListener('click', ()=>{
+  newCatRow.classList.remove('show'); newCatInput.value="";
+  const cats = catsForNotebook(currentNotebookId);
+  if(cats.length) inputCategory.value = cats[0].id;
+});
+
+function suggestNextNumber(){
+  if(inputNumber.value.trim()) return;
+  const catId = inputCategory.value;
+  if(!catId || catId===NEW_CAT_VALUE) return;
+  const nums = entries.filter(e=>e.categoryId===catId && !e.trashed)
+    .map(e=>parseFloat(e.number)).filter(n=>!isNaN(n));
+  inputNumber.placeholder = nums.length ? ("next: "+(Math.max(...nums)+1)) : "1, 2a, 07...";
+}
+
+/* ===================== Draft autosave ===================== */
+function saveDraft(){
+  localStorage.setItem('ledger_draft', JSON.stringify({
+    number:inputNumber.value, title:inputTitle.value, tags:inputTags.value, body:inputBody.value
+  }));
+}
+[inputNumber,inputTitle,inputTags,inputBody].forEach(el=>el.addEventListener('input', ()=>{ saveDraft(); updateWordCount(); }));
+function updateWordCount(){
+  const words = inputBody.value.trim().split(/\s+/).filter(Boolean).length;
+  wordCountEl.textContent = words + (words===1?" word":" words");
+}
+function clearDraft(){ localStorage.removeItem('ledger_draft'); }
+
+/* ===================== Save entry ===================== */
+saveNoteBtn.addEventListener('click', saveEntry);
+document.addEventListener('keydown',(e)=>{
+  if((e.metaKey||e.ctrlKey) && e.key==='Enter'){ saveEntry(); }
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); searchInput.focus(); }
+});
+
+async function saveEntry(){
+  if(currentNotebookId==="__all__"||currentNotebookId==="__trash__"){ alert("Pick a specific notebook first — entries need a home."); return; }
+  if(inputCategory.value===NEW_CAT_VALUE){ alert("Finish adding your new category (Add / Cancel)."); return; }
+  const number = inputNumber.value.trim();
+  const categoryId = inputCategory.value;
+  const title = inputTitle.value.trim();
+  const body = inputBody.value;
+  const tags = inputTags.value.split(',').map(t=>t.trim()).filter(Boolean);
+
+  if(!title && !body.trim()){ alert("Add a title or some content."); return; }
+
+  const dup = entries.find(e=>!e.trashed && e.notebookId===currentNotebookId && e.categoryId===categoryId && e.number===number && number!=="");
+  if(dup && !confirm(`Number "${number}" is already used in this category. Save anyway?`)) return;
+
+  const entry = {
+    id:uid('en'), notebookId:currentNotebookId, categoryId,
+    number: number||"—", title: title||"(untitled)", body,
+    tags, pinned: pinOnSave.checked, archived:false, trashed:false,
+    createdAt:Date.now(), updatedAt:Date.now()
+  };
+  entries.unshift(entry);
+  await idbPut('entries', entry);
+
+  inputNumber.value=""; inputTitle.value=""; inputTags.value=""; inputBody.value=""; pinOnSave.checked=false;
+  clearDraft(); updateWordCount(); suggestNextNumber();
+  renderSidebar(); renderTagFilter(); renderAll();
+}
+
+/* ===================== Scoping / filtering / sorting ===================== */
+function getScopedEntries(){
+  if(currentNotebookId==="__trash__") return entries.filter(e=>e.trashed);
+  if(currentNotebookId==="__all__") return entries.filter(e=>!e.trashed);
+  return entries.filter(e=>e.notebookId===currentNotebookId && !e.trashed);
+}
+
+function getFilteredSorted(){
+  let list;
+  const scope = searchScope.value;
+  if(currentNotebookId==="__trash__") list = entries.filter(e=>e.trashed);
+  else if(scope==="all" || currentNotebookId==="__all__") list = entries.filter(e=>!e.trashed);
+  else list = entries.filter(e=>e.notebookId===currentNotebookId && !e.trashed);
+
+  const status = filterStatus.value;
+  if(currentNotebookId!=="__trash__"){
+    if(status==="pinned") list = list.filter(e=>e.pinned && !e.archived);
+    else if(status==="archived") list = list.filter(e=>e.archived);
+    else list = list.filter(e=>!e.archived);
+  }
+
+  const q = searchInput.value.trim().toLowerCase();
+  if(q){
+    list = list.filter(e=>
+      (e.title||"").toLowerCase().includes(q) ||
+      (e.body||"").toLowerCase().includes(q) ||
+      (e.number||"").toLowerCase().includes(q) ||
+      (e.tags||[]).some(t=>t.toLowerCase().includes(q)) ||
+      ((catById(e.categoryId)||{}).name||"").toLowerCase().includes(q)
+    );
+  }
+
+  const catF = filterCategory.value;
+  if(catF!=="__all__") list = list.filter(e=>e.categoryId===catF);
+  const tagF = filterTag.value;
+  if(tagF!=="__all__") list = list.filter(e=>(e.tags||[]).includes(tagF));
+
+  const sortMode = sortSelect.value;
+  list = list.slice();
+  if(sortMode==="newest") list.sort((a,b)=>b.createdAt-a.createdAt);
+  else if(sortMode==="oldest") list.sort((a,b)=>a.createdAt-b.createdAt);
+  else if(sortMode==="title") list.sort((a,b)=>a.title.localeCompare(b.title));
+  else if(sortMode==="updated") list.sort((a,b)=>b.updatedAt-a.updatedAt);
+  else if(sortMode==="number") list.sort((a,b)=>{
+    const na=parseFloat(a.number), nb_=parseFloat(b.number);
+    const A = isNaN(na)?Infinity:na, B=isNaN(nb_)?Infinity:nb_;
+    if(A!==B) return A-B;
+    return (a.number||"").localeCompare(b.number||"");
+  });
+  if(currentNotebookId!=="__trash__" && status!=="archived"){
+    list.sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0));
+  }
+  return list;
+}
+
+/* ===================== Rendering ===================== */
+function escapeHtml(str){
+  return (str||"").replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function fmtDate(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})+' · '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+}
+
+function renderAll(){
+  const cur = currentNotebookId;
+  if(cur==="__all__"){ ctxTitle.textContent="All Notebooks"; ctxSub.textContent = entries.filter(e=>!e.trashed).length+" entries across "+notebooks.length+" notebooks"; }
+  else if(cur==="__trash__"){ ctxTitle.textContent="Trash"; ctxSub.textContent = entries.filter(e=>e.trashed).length+" trashed entries"; }
+  else { const nb=nbById(cur); ctxTitle.textContent = nb?nb.name:"—"; const c=entries.filter(e=>e.notebookId===cur&&!e.trashed).length; ctxSub.textContent = c+" entries"; }
+
+  const composerBox = document.getElementById('composerBox');
+  composerBox.style.display = (cur==="__all__"||cur==="__trash__") ? "none":"flex";
+  composerBox.style.flexDirection="column";
+
+  const list = getFilteredSorted();
+  notesContainer.innerHTML="";
+
+  if(list.length===0){
+    notesContainer.innerHTML = `<div class="empty"><div class="big">▢</div><div>${entries.length===0?"No entries yet — add your first one above.":"Nothing matches your filters."}</div></div>`;
+    return;
+  }
+
+  if(viewMode==="flat"){
+    const shown = list.slice(0, flatLimit);
+    const cardsWrap = document.createElement('div'); cardsWrap.className='cards';
+    shown.forEach(e=>cardsWrap.appendChild(renderCard(e)));
+    notesContainer.appendChild(cardsWrap);
+    if(list.length>flatLimit){
+      const row=document.createElement('div'); row.className='load-more-row';
+      const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
+      btn.textContent = `Load more (${list.length-flatLimit} remaining)`;
+      btn.addEventListener('click', ()=>{ flatLimit+=60; renderAll(); });
+      row.appendChild(btn); notesContainer.appendChild(row);
+    }
+  } else {
+    const groups = {};
+    list.forEach(e=>{ const k=e.categoryId; (groups[k]=groups[k]||[]).push(e); });
+    Object.keys(groups).forEach(catId=>{
+      const cat = catById(catId);
+      const groupEntries = groups[catId];
+      const limit = groupLimits[catId]||30;
+      const wrap=document.createElement('div'); wrap.className='group';
+      const head=document.createElement('div'); head.className='group-head';
+      head.innerHTML = `<span class="cat-dot" style="background:${cat?cat.color:'#888'}"></span><span class="cat-name">${escapeHtml(cat?cat.name:'Unknown')}</span><span class="cat-count">${groupEntries.length}</span>`;
+      wrap.appendChild(head);
+      const cardsWrap=document.createElement('div'); cardsWrap.className='cards';
+      groupEntries.slice(0,limit).forEach(e=>cardsWrap.appendChild(renderCard(e)));
+      wrap.appendChild(cardsWrap);
+      if(groupEntries.length>limit){
+        const row=document.createElement('div'); row.className='load-more-row';
+        const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
+        btn.textContent=`Load more (${groupEntries.length-limit} remaining)`;
+        btn.addEventListener('click', ()=>{ groupLimits[catId]=limit+30; renderAll(); });
+        row.appendChild(btn); wrap.appendChild(row);
+      }
+      notesContainer.appendChild(wrap);
+    });
+  }
+}
+
+function renderCard(e){
+  const el=document.createElement('div');
+  el.className='note'+(e.pinned?' pinned':'')+(selectMode?' select-mode':'')+(selectedIds.has(e.id)?' selected':'');
+  el.dataset.id=e.id;
+  const cat = catById(e.categoryId);
+  const nb = nbById(e.notebookId);
+  const showNb = currentNotebookId==="__all__"||currentNotebookId==="__trash__";
+  el.innerHTML = `
+    <input type="checkbox" class="note-select" ${selectedIds.has(e.id)?'checked':''}>
+    <div class="note-top">
+      <span class="note-code">${escapeHtml(e.number)} · ${escapeHtml(cat?cat.name:'?')}</span>
+      ${showNb?`<span class="note-nb">${escapeHtml(nb?nb.name:'?')}</span>`:''}
+    </div>
+    <div class="note-title">${e.pinned?'★ ':''}${escapeHtml(e.title)}</div>
+    <div class="note-body">${escapeHtml(e.body)}</div>
+    ${e.tags&&e.tags.length?`<div class="note-tags">${e.tags.map(t=>`<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}</div>`:''}
+    <div class="note-foot">
+      <span class="note-date">${fmtDate(e.updatedAt)}</span>
+      <span class="note-actions">
+        <button class="icon-btn" data-a="expand">expand</button>
+        ${e.trashed ? `
+          <button class="icon-btn" data-a="restore">restore</button>
+          <button class="icon-btn danger" data-a="purge">delete forever</button>
+        ` : `
+          <button class="icon-btn ${e.pinned?'active':''}" data-a="pin">${e.pinned?'unpin':'pin'}</button>
+          <button class="icon-btn" data-a="archive">${e.archived?'unarchive':'archive'}</button>
+          <button class="icon-btn" data-a="edit">edit</button>
+          <button class="icon-btn danger" data-a="trash">trash</button>
+        `}
+      </span>
+    </div>`;
+
+  el.querySelector('[data-a="expand"]').addEventListener('click',(ev)=>{
+    const b=el.querySelector('.note-body'); b.classList.toggle('expanded');
+    ev.target.textContent = b.classList.contains('expanded')?'collapse':'expand';
+  });
+  const selCb = el.querySelector('.note-select');
+  selCb.addEventListener('click',(ev)=>{
+    ev.stopPropagation();
+    if(selCb.checked) selectedIds.add(e.id); else selectedIds.delete(e.id);
+    updateBulkBar();
+    el.classList.toggle('selected', selCb.checked);
+  });
+  el.addEventListener('click',()=>{ if(selectMode){ selCb.checked=!selCb.checked; selCb.dispatchEvent(new Event('click',{bubbles:true})); } });
+
+  const pinBtn=el.querySelector('[data-a="pin"]');
+  if(pinBtn) pinBtn.addEventListener('click',async(ev)=>{ ev.stopPropagation(); e.pinned=!e.pinned; e.updatedAt=Date.now(); await idbPut('entries',e); renderAll(); });
+  const arcBtn=el.querySelector('[data-a="archive"]');
+  if(arcBtn) arcBtn.addEventListener('click',async(ev)=>{ ev.stopPropagation(); e.archived=!e.archived; e.updatedAt=Date.now(); await idbPut('entries',e); renderSidebar(); renderAll(); });
+  const editBtn=el.querySelector('[data-a="edit"]');
+  if(editBtn) editBtn.addEventListener('click',(ev)=>{ ev.stopPropagation(); openEditMode(el,e); });
+  const trashBtn=el.querySelector('[data-a="trash"]');
+  if(trashBtn) trashBtn.addEventListener('click',async(ev)=>{ ev.stopPropagation(); e.trashed=true; e.updatedAt=Date.now(); await idbPut('entries',e); renderSidebar(); renderAll(); });
+  const restoreBtn=el.querySelector('[data-a="restore"]');
+  if(restoreBtn) restoreBtn.addEventListener('click',async(ev)=>{ ev.stopPropagation(); e.trashed=false; e.updatedAt=Date.now(); await idbPut('entries',e); renderSidebar(); renderAll(); });
+  const purgeBtn=el.querySelector('[data-a="purge"]');
+  if(purgeBtn) purgeBtn.addEventListener('click',async(ev)=>{
+    ev.stopPropagation();
+    if(confirm('Permanently delete this entry? This cannot be undone.')){
+      await idbDelete('entries', e.id);
+      entries = entries.filter(x=>x.id!==e.id);
+      renderSidebar(); renderAll();
     }
   });
+  return el;
+}
 
-  // ---------- Init ----------
-  load();
-  renderCategoryOptions();
-  inputCategory.value = categories.includes("None") ? "None" : categories[0];
-  renderNotes();
+function openEditMode(el,e){
+  el.classList.add('editing');
+  const cats = catsForNotebook(e.notebookId);
+  const catOpts = cats.map(c=>`<option value="${c.id}" ${c.id===e.categoryId?'selected':''}>${escapeHtml(c.name)}</option>`).join('');
+  el.innerHTML = `
+    <div class="row" style="margin-bottom:6px;">
+      <div class="field num"><label>Number</label><input type="text" class="ed-num" value="${escapeHtml(e.number)}"></div>
+      <div class="field" style="flex:1;"><label>Category</label><select class="ed-cat">${catOpts}</select></div>
+      <div class="field" style="flex:1;"><label>Tags</label><input type="text" class="ed-tags" value="${escapeHtml((e.tags||[]).join(', '))}"></div>
+    </div>
+    <div class="field"><label>Title</label><input type="text" class="ed-title" value="${escapeHtml(e.title)}"></div>
+    <textarea class="ed-body">${escapeHtml(e.body)}</textarea>
+    <div class="edit-row">
+      <button class="btn btn-primary btn-sm" data-a="save">Save changes</button>
+      <button class="btn btn-ghost btn-sm" data-a="cancel">Cancel</button>
+    </div>`;
+  el.querySelector('[data-a="save"]').addEventListener('click', async ()=>{
+    e.number = el.querySelector('.ed-num').value.trim()||"—";
+    e.categoryId = el.querySelector('.ed-cat').value;
+    e.tags = el.querySelector('.ed-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+    e.title = el.querySelector('.ed-title').value.trim()||"(untitled)";
+    e.body = el.querySelector('.ed-body').value;
+    e.updatedAt = Date.now();
+    await idbPut('entries', e);
+    renderTagFilter(); renderAll();
+  });
+  el.querySelector('[data-a="cancel"]').addEventListener('click', ()=>renderAll());
+}
+
+/* ===================== Toolbar events ===================== */
+[searchInput,searchScope,filterCategory,filterTag,filterStatus,sortSelect].forEach(el=>{
+  el.addEventListener('input', ()=>{ groupLimits={}; flatLimit=60; renderAll(); });
+  el.addEventListener('change', ()=>{ groupLimits={}; flatLimit=60; renderAll(); });
+});
+viewGroupedBtn.addEventListener('click', ()=>{ viewMode='grouped'; viewGroupedBtn.classList.add('active'); viewFlatBtn.classList.remove('active'); renderAll(); });
+viewFlatBtn.addEventListener('click', ()=>{ viewMode='flat'; viewFlatBtn.classList.add('active'); viewGroupedBtn.classList.remove('active'); renderAll(); });
+
+/* ===================== Select / bulk mode ===================== */
+selectModeBtn.addEventListener('click', ()=>{
+  selectMode=!selectMode;
+  selectModeBtn.classList.toggle('active', selectMode);
+  selectModeBtn.textContent = selectMode ? '☑ Selecting…' : '☑ Select';
+  if(!selectMode){ selectedIds.clear(); updateBulkBar(); }
+  renderAll();
+});
+function updateBulkBar(){
+  bulkCount.textContent = selectedIds.size+" selected";
+  bulkBar.classList.toggle('show', selectedIds.size>0);
+  bulkMoveNb.innerHTML = notebooks.map(n=>`<option value="${n.id}">${escapeHtml(n.name)}</option>`).join('');
+  const targetNb = bulkMoveNb.value || (notebooks[0]&&notebooks[0].id);
+  bulkMoveCat.innerHTML = catsForNotebook(targetNb).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+}
+bulkMoveNb.addEventListener('change', ()=>{
+  bulkMoveCat.innerHTML = catsForNotebook(bulkMoveNb.value).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+});
+document.getElementById('bulkClear').addEventListener('click', ()=>{ selectedIds.clear(); updateBulkBar(); renderAll(); });
+document.getElementById('bulkPin').addEventListener('click', async ()=>{
+  for(const id of selectedIds){ const e=entries.find(x=>x.id===id); if(e){ e.pinned=true; e.updatedAt=Date.now(); await idbPut('entries',e); } }
+  renderAll();
+});
+document.getElementById('bulkArchive').addEventListener('click', async ()=>{
+  for(const id of selectedIds){ const e=entries.find(x=>x.id===id); if(e){ e.archived=true; e.updatedAt=Date.now(); await idbPut('entries',e); } }
+  renderSidebar(); renderAll();
+});
+document.getElementById('bulkTrash').addEventListener('click', async ()=>{
+  if(!confirm(`Trash ${selectedIds.size} entries?`)) return;
+  for(const id of selectedIds){ const e=entries.find(x=>x.id===id); if(e){ e.trashed=true; e.updatedAt=Date.now(); await idbPut('entries',e); } }
+  selectedIds.clear(); updateBulkBar(); renderSidebar(); renderAll();
+});
+const bulkMoveWrap = document.createElement('button');
+bulkMoveWrap.className='btn btn-ghost btn-sm'; bulkMoveWrap.textContent='Move';
+bulkMoveWrap.addEventListener('click', async ()=>{
+  const nbId = bulkMoveNb.value, catId = bulkMoveCat.value;
+  if(!nbId||!catId) return;
+  for(const id of selectedIds){ const e=entries.find(x=>x.id===id); if(e){ e.notebookId=nbId; e.categoryId=catId; e.updatedAt=Date.now(); await idbPut('entries',e); } }
+  selectedIds.clear(); updateBulkBar(); renderSidebar(); renderCategorySelects(); renderAll();
+});
+bulkBar.insertBefore(bulkMoveWrap, document.getElementById('bulkPin'));
+
+/* ===================== Manage categories modal ===================== */
+document.getElementById('manageCatBtn').addEventListener('click', ()=>{
+  if(currentNotebookId==="__all__"||currentNotebookId==="__trash__"){ alert("Pick a specific notebook to manage its categories."); return; }
+  renderCatModal();
+  openModal('modalCategories');
+});
+function renderCatModal(){
+  const body = document.getElementById('catListBody');
+  body.innerHTML="";
+  catsForNotebook(currentNotebookId).forEach(c=>{
+    const count = entries.filter(e=>e.categoryId===c.id && !e.trashed).length;
+    const row = document.createElement('div'); row.className='mini-row';
+    row.innerHTML = `<span class="cat-dot" style="background:${c.color}"></span><span class="grow">${escapeHtml(c.name)} <span style="color:var(--ink-faint); font-family:var(--mono); font-size:11px;">(${count})</span></span>`;
+    const renameBtn=document.createElement('button'); renameBtn.className='icon-btn'; renameBtn.textContent='rename';
+    renameBtn.addEventListener('click', async ()=>{
+      const n = prompt("Rename category:", c.name);
+      if(n && n.trim()){ c.name=n.trim(); await idbPut('categories',c); renderCatModal(); renderCategorySelects(); renderAll(); }
+    });
+    const delBtn=document.createElement('button'); delBtn.className='icon-btn danger'; delBtn.textContent='delete';
+    delBtn.addEventListener('click', async ()=>{
+      if(count>0){ alert(`Can't delete "${c.name}" — it has ${count} entries. Move or delete them first.`); return; }
+      if(confirm(`Delete category "${c.name}"?`)){ await idbDelete('categories',c.id); categories=categories.filter(x=>x.id!==c.id); renderCatModal(); renderCategorySelects(); }
+    });
+    row.appendChild(renameBtn); row.appendChild(delBtn);
+    body.appendChild(row);
+  });
+}
+document.getElementById('catAddBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('catNewName').value.trim();
+  if(!name) return;
+  const c={id:uid('cat'), notebookId:currentNotebookId, name, color:PALETTE[categories.length%PALETTE.length], createdAt:Date.now()};
+  categories.push(c); await idbPut('categories',c);
+  document.getElementById('catNewName').value="";
+  renderCatModal(); renderCategorySelects();
+});
+
+/* ===================== Dashboard ===================== */
+document.getElementById('statsBtn').addEventListener('click', ()=>{
+  const grid = document.getElementById('statGrid');
+  const active = entries.filter(e=>!e.trashed);
+  const pinned = active.filter(e=>e.pinned).length;
+  const archived = active.filter(e=>e.archived).length;
+  const trashed = entries.filter(e=>e.trashed).length;
+  const words = active.reduce((s,e)=>s+ (e.body||"").trim().split(/\s+/).filter(Boolean).length, 0);
+  grid.innerHTML = [
+    ['Notebooks',notebooks.length],['Categories',categories.length],['Total entries',active.length],
+    ['Pinned',pinned],['Archived',archived],['In trash',trashed],['Total words',words.toLocaleString()]
+  ].map(([lbl,num])=>`<div class="stat-box"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join('');
+
+  const perNb = document.getElementById('statPerNotebook');
+  perNb.innerHTML = notebooks.map(nb=>{
+    const c = active.filter(e=>e.notebookId===nb.id).length;
+    return `<div class="mini-row"><span class="nb-dot" style="background:${nb.color}"></span><span class="grow">${escapeHtml(nb.name)}</span><span style="font-family:var(--mono); font-size:12px; color:var(--ink-dim);">${c}</span></div>`;
+  }).join('');
+  openModal('modalStats');
+});
+
+/* ===================== Import / Export ===================== */
+document.getElementById('dataBtn').addEventListener('click', ()=>openModal('modalData'));
+document.getElementById('exportCurrentBtn').addEventListener('click', ()=>{
+  if(currentNotebookId==="__all__"||currentNotebookId==="__trash__"){ alert("Pick a specific notebook first."); return; }
+  const nb = nbById(currentNotebookId);
+  const cats = catsForNotebook(currentNotebookId);
+  const ents = entries.filter(e=>e.notebookId===currentNotebookId);
+  downloadJSON({notebooks:[nb], categories:cats, entries:ents, exportedAt:new Date().toISOString()}, `ledger-${slug(nb.name)}.json`);
+});
+document.getElementById('exportAllBtn').addEventListener('click', ()=>{
+  downloadJSON({notebooks, categories, entries, exportedAt:new Date().toISOString()}, `ledger-full-backup.json`);
+});
+document.getElementById('exportTxtBtn').addEventListener('click', ()=>{
+  if(currentNotebookId==="__all__"||currentNotebookId==="__trash__"){ alert("Pick a specific notebook first."); return; }
+  const nb = nbById(currentNotebookId);
+  const cats = catsForNotebook(currentNotebookId);
+  let txt = `${nb.name}\n${'='.repeat(nb.name.length)}\n\n`;
+  cats.forEach(c=>{
+    const ents = entries.filter(e=>e.categoryId===c.id && !e.trashed).sort((a,b)=>{
+      const A=parseFloat(a.number), B=parseFloat(b.number);
+      if(!isNaN(A)&&!isNaN(B)) return A-B;
+      return (a.number||"").localeCompare(b.number||"");
+    });
+    if(!ents.length) return;
+    txt += `\n-- ${c.name} --\n\n`;
+    ents.forEach(e=>{ txt += `[${e.number}] ${e.title}\n${e.body}\n\n`; });
+  });
+  const blob = new Blob([txt],{type:'text/plain'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`ledger-${slug(nb.name)}.txt`; a.click();
+});
+function downloadJSON(data, filename){
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click();
+}
+function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
+
+document.getElementById('importBtn').addEventListener('click', ()=>document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (evt)=>{
+    try{
+      const data = JSON.parse(evt.target.result);
+      if(!Array.isArray(data.entries)) throw new Error("bad format");
+      for(const nb of (data.notebooks||[])){ if(!notebooks.some(x=>x.id===nb.id)){ notebooks.push(nb); await idbPut('notebooks',nb); } }
+      for(const c of (data.categories||[])){ if(!categories.some(x=>x.id===c.id)){ categories.push(c); await idbPut('categories',c); } }
+      for(const en of data.entries){ if(!entries.some(x=>x.id===en.id)){ entries.push(en); await idbPut('entries',en); } }
+      renderSidebar(); renderCategorySelects(); renderAll();
+      alert("Import complete.");
+    }catch(err){ alert("Couldn't read that file — make sure it's a Ledger JSON export."); }
+  };
+  reader.readAsText(file);
+  e.target.value="";
+});
+
+/* ===================== Read (compiled document) view ===================== */
+document.getElementById('readViewBtn').addEventListener('click', ()=>{
+  if(currentNotebookId==="__all__"||currentNotebookId==="__trash__"){ alert("Pick a specific notebook to open its Read view."); return; }
+  const sel = document.getElementById('readCategorySelect');
+  sel.innerHTML = catsForNotebook(currentNotebookId).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  sel.onchange = renderReadDoc;
+  renderReadDoc();
+  openModal('modalRead');
+});
+function renderReadDoc(){
+  const sel = document.getElementById('readCategorySelect');
+  const catId = sel.value;
+  const cat = catById(catId);
+  document.getElementById('readTitle').textContent = "Read view — "+(cat?cat.name:"");
+  const ents = entries.filter(e=>e.categoryId===catId && !e.trashed).sort((a,b)=>{
+    const A=parseFloat(a.number), B=parseFloat(b.number);
+    if(!isNaN(A)&&!isNaN(B)) return A-B;
+    return (a.number||"").localeCompare(b.number||"");
+  });
+  const body = document.getElementById('readDocBody');
+  if(!ents.length){ body.innerHTML = `<div class="empty">No entries in this category yet.</div>`; return; }
+  body.innerHTML = ents.map(e=>`<p><span class="rd-num">${escapeHtml(e.number)}</span>${escapeHtml(e.body||e.title)}</p>`).join('');
+}
+document.getElementById('printReadBtn').addEventListener('click', ()=>window.print());
+
+/* ===================== Modal plumbing ===================== */
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('[data-close]').forEach(btn=>{
+  btn.addEventListener('click', (e)=>{ e.target.closest('.modal-overlay').classList.remove('show'); });
+});
+document.querySelectorAll('.modal-overlay').forEach(ov=>{
+  ov.addEventListener('click',(e)=>{ if(e.target===ov) ov.classList.remove('show'); });
+});
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ document.querySelectorAll('.modal-overlay.show').forEach(m=>m.classList.remove('show')); } });
+
+/* ===================== Theme ===================== */
+function updateThemeButtons(){
+  const t = document.documentElement.getAttribute('data-theme');
+  document.getElementById('themeDark').classList.toggle('active', t==='dark');
+  document.getElementById('themeLight').classList.toggle('active', t==='light');
+}
+document.getElementById('themeDark').addEventListener('click', ()=>{ document.documentElement.setAttribute('data-theme','dark'); localStorage.setItem('ledger_theme','dark'); updateThemeButtons(); });
+document.getElementById('themeLight').addEventListener('click', ()=>{ document.documentElement.setAttribute('data-theme','light'); localStorage.setItem('ledger_theme','light'); updateThemeButtons(); });
+
+/* ===================== Go ===================== */
+boot();
 
 })();
 </script>
