@@ -236,8 +236,16 @@
 <div class="modal-overlay" id="modalRead">
   <div class="modal wide print-target">
     <h3><span id="readTitle">Read view</span><button data-close>✕</button></h3>
+    <div class="mini-row" style="margin-bottom:10px;">
+      <span class="grow hint">Copying in chunks so the clipboard doesn't choke on thousands of benefits. ~3000 characters ≈ 1 page.</span>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-dim); white-space:nowrap;">
+        Pages per chunk <input type="text" id="pagesPerChunkInput" style="width:50px; text-align:center;">
+      </label>
+    </div>
+    <div id="chunkSummary" class="hint" style="margin-bottom:10px;"></div>
+    <div id="chunkList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
     <div class="modal-body"><div class="read-doc" id="readDocBody"></div></div>
-    <div class="modal-actions"><button class="btn btn-ghost btn-sm" id="printReadBtn">🖨 Print</button><button class="btn btn-ghost" data-close>Close</button></div>
+    <div class="modal-actions"><button class="btn btn-ghost btn-sm" id="printReadBtn">🖨 Print / Save as PDF</button><button class="btn btn-ghost" data-close>Close</button></div>
   </div>
 </div>
 
@@ -246,7 +254,11 @@
 "use strict";
 
 /* ===================== IndexedDB ===================== */
-const DB_NAME="LedgerDB3", DB_VERSION=1;
+/* IMPORTANT: this name must stay stable across every future edit/deploy.
+   Renaming it wipes all data — earlier versions of this app used LedgerDB / LedgerDB2 / LedgerDB3
+   by mistake, which is why data appeared to reset after each redeploy. Never change DB_NAME again;
+   bump DB_VERSION and handle migrations in onupgradeneeded instead. */
+const DB_NAME="LedgerBenefitsDB", DB_VERSION=1;
 let db;
 function idbOpen(){
   return new Promise((resolve,reject)=>{
@@ -270,12 +282,54 @@ function idbGetAll(store){ return new Promise((res,rej)=>{ const r=tx(store,'rea
 function idbPut(store,obj){ return new Promise((res,rej)=>{ const r=tx(store,'readwrite').put(obj); r.onsuccess=()=>res(obj); r.onerror=(e)=>rej(e); }); }
 function idbDelete(store,id){ return new Promise((res,rej)=>{ const r=tx(store,'readwrite').delete(id); r.onsuccess=()=>res(); r.onerror=(e)=>rej(e); }); }
 
+/* One-time best-effort recovery: pull in anything left behind under the old, accidentally-renamed
+   database names (LedgerDB, LedgerDB2, LedgerDB3) so past work isn't lost. Safe to run repeatedly. */
+async function migrateOldDatabases(){
+  if(localStorage.getItem('ledger_migrated_v1')) return;
+  try{
+    if(indexedDB.databases){
+      const list = await indexedDB.databases();
+      const oldNames = ["LedgerDB","LedgerDB2","LedgerDB3"].filter(n=>n!==DB_NAME);
+      for(const info of list){
+        if(info.name && oldNames.includes(info.name)) await migrateFromOldDb(info.name);
+      }
+    }
+  }catch(e){ /* best effort only */ }
+  localStorage.setItem('ledger_migrated_v1','1');
+}
+function migrateFromOldDb(oldName){
+  return new Promise((resolve)=>{
+    const req = indexedDB.open(oldName);
+    req.onsuccess = async (e)=>{
+      const odb = e.target.result;
+      try{
+        for(const storeName of ['benefits','notebooks','placements']){
+          if(!odb.objectStoreNames.contains(storeName)) continue;
+          const items = await new Promise((res)=>{
+            const r = odb.transaction(storeName,'readonly').objectStore(storeName).getAll();
+            r.onsuccess=()=>res(r.result||[]); r.onerror=()=>res([]);
+          });
+          for(const item of items){
+            if(storeName==='benefits' && !benefits.some(x=>x.id===item.id)){ benefits.push(item); await idbPut('benefits',item); }
+            if(storeName==='notebooks' && !notebooks.some(x=>x.id===item.id)){ notebooks.push(item); await idbPut('notebooks',item); }
+            if(storeName==='placements' && !placements.some(x=>x.id===item.id)){ placements.push(item); await idbPut('placements',item); }
+          }
+        }
+      }catch(err){}
+      odb.close();
+      resolve();
+    };
+    req.onerror = ()=>resolve();
+  });
+}
+
 /* ===================== State ===================== */
 let benefits=[], notebooks=[], placements=[];
 let view = {type:'import'};
-let rowSelections = new Map();   // benefitId -> Set(notebookId or headingId)
 let skippedIds = new Set();      // scope-prefixed benefit ids, session only
 let pendingLimit=40, notebookLimit=100, allBenefitsLimit=60, headingPendingLimit=40;
+let pagesPerChunk = parseInt(localStorage.getItem('ledger_pages_per_chunk')||'10',10);
+const CHARS_PER_PAGE = 3000; // rough estimate of characters on one printed page
 const PALETTE=["#d4a24c","#5eb1a3","#c86b5a","#6f9bd1","#a689c9","#8bbf5a","#d17aa8","#7a8fa6"];
 function uid(p){ return p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -286,6 +340,8 @@ async function boot(){
   benefits = await idbGetAll('benefits');
   notebooks = await idbGetAll('notebooks');
   placements = await idbGetAll('placements');
+
+  await migrateOldDatabases();
 
   if(topLevelNotebooks().length===0){
     for(const name of ["Aqeedah","Fiqh","Usul","Miscellaneous"]){
@@ -430,7 +486,7 @@ document.getElementById('createNbBtn').addEventListener('click', async ()=>{
 
 /* ===================== View switching ===================== */
 function switchView(v){
-  view=v; rowSelections.clear();
+  view=v;
   pendingLimit=40; notebookLimit=100; allBenefitsLimit=60; headingPendingLimit=40;
   renderSidebar(); renderView();
   if(window.innerWidth<=900) document.getElementById('sidebar').classList.remove('open');
@@ -575,44 +631,36 @@ function renderTriageView(root, actions){
     const firstRow = filtered[0];
     if(!firstRow) return;
     const digit = parseInt(e.key,10);
-    if(digit>=1 && digit<=9 && nbs[digit-1]){ togglePillSelection(firstRow.id, nbs[digit-1].id); draw(); }
-    else if(e.key==='Enter'){
-      e.preventDefault();
-      const set = rowSelections.get(firstRow.id);
-      if(set && set.size>0){ confirmIntoNotebooks(firstRow.id, set, ()=>{ rowSelections.delete(firstRow.id); pendingLimit=40; draw(); renderSidebar(); }); }
+    if(digit>=1 && digit<=9 && nbs[digit-1]){
+      confirmIntoNotebooks(firstRow.id, [nbs[digit-1].id], ()=>{ pendingLimit=40; draw(); renderSidebar(); });
     }
     else if(e.key.toLowerCase()==='s'){ skippedIds.add('top::'+firstRow.id); draw(); renderSidebar(); }
   };
 }
 
-function togglePillSelection(benId, id){
-  if(!rowSelections.has(benId)) rowSelections.set(benId, new Set());
-  const set = rowSelections.get(benId);
-  if(set.has(id)) set.delete(id); else set.add(id);
-}
-
-/* generic triage row renderer; onAddNew(name) creates+returns a new target pushed into the pill list live;
-   onConfirm(benId, selectedIdSet, after) performs the actual placement write for this context */
+/* generic triage row renderer — clicking a pill instantly places the benefit and the row disappears.
+   onAddNew(name) creates+returns a new target and immediately places into it too.
+   onConfirm(benId, selectedIdsArray, after) performs the actual placement write for this context */
 function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew, onConfirm){
   const el = document.createElement('div');
   el.className='triage-row'+(isFocused?' focused':'');
-  const sel = rowSelections.get(b.id) || new Set();
   el.innerHTML = `
     <div class="triage-text" data-role="display">${escapeHtml(b.text)}</div>
     <div class="pill-row" data-role="pills">
-      ${targets.map((t,i)=>`<button class="pill ${sel.has(t.id)?'sel':''}" data-t="${t.id}" style="${sel.has(t.id)?`background:${t.color};border-color:${t.color};`:''}"><span class="num">${i<9?(i+1):''}</span>${escapeHtml(t.name)}</button>`).join('')}
+      ${targets.map((t,i)=>`<button class="pill" data-t="${t.id}"><span class="num">${i<9?(i+1):''}</span>${escapeHtml(t.name)}</button>`).join('')}
       <button class="pill add" data-role="addnb">+ new</button>
     </div>
     <div class="row-actions"></div>`;
   el.querySelectorAll('[data-t]').forEach(pillEl=>{
-    pillEl.addEventListener('click', ()=>{ togglePillSelection(b.id, pillEl.dataset.t); renderView(); });
+    pillEl.addEventListener('click', ()=>{
+      onConfirm(b.id, [pillEl.dataset.t], ()=>{ renderSidebar(); renderView(); });
+    });
   });
   el.querySelector('[data-role="addnb"]').addEventListener('click', ()=>{
     const name = prompt("New name:");
     if(name && name.trim()){
       const t = onAddNew(uid('x'), name.trim());
-      togglePillSelection(b.id, t.id);
-      renderSidebar(); renderView();
+      onConfirm(b.id, [t.id], ()=>{ renderSidebar(); renderView(); });
     }
   });
   const actions = el.querySelector('.row-actions');
@@ -625,13 +673,7 @@ function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew, onConfirm){
   });
   const skipBtn=document.createElement('button'); skipBtn.className='btn btn-ghost btn-sm'; skipBtn.textContent='Skip';
   skipBtn.addEventListener('click', ()=>{ skippedIds.add(scopeKey+'::'+b.id); renderSidebar(); renderView(); });
-  const confirmBtn=document.createElement('button'); confirmBtn.className='btn btn-primary btn-sm'; confirmBtn.textContent='Confirm';
-  confirmBtn.addEventListener('click', ()=>{
-    const set = rowSelections.get(b.id);
-    if(!set || set.size===0){ alert("Select at least one button first, or use Skip."); return; }
-    onConfirm(b.id, set, ()=>{ rowSelections.delete(b.id); renderSidebar(); renderView(); });
-  });
-  actions.appendChild(editBtn); actions.appendChild(skipBtn); actions.appendChild(confirmBtn);
+  actions.appendChild(editBtn); actions.appendChild(skipBtn);
   return el;
 }
 
@@ -669,9 +711,11 @@ function renderNotebookView(root, actions, nbId){
 
   const readBtn=document.createElement('button'); readBtn.className='btn btn-ghost btn-sm'; readBtn.textContent='📖 Read view';
   readBtn.addEventListener('click', ()=>openReadView(nbId));
+  const bookBtn=document.createElement('button'); bookBtn.className='btn btn-ghost btn-sm'; bookBtn.textContent='📚 Full Book';
+  bookBtn.addEventListener('click', ()=>openFullBookView(nbId));
   const exportBtn=document.createElement('button'); exportBtn.className='btn btn-ghost btn-sm'; exportBtn.textContent='Export .txt';
   exportBtn.addEventListener('click', ()=>exportNotebookTxt(nbId));
-  actions.appendChild(readBtn); actions.appendChild(exportBtn);
+  actions.appendChild(readBtn); actions.appendChild(bookBtn); actions.appendChild(exportBtn);
 
   root.innerHTML="";
 
@@ -840,18 +884,149 @@ function exportNotebookTxt(nbId){
   const list = placementsForNotebook(nbId);
   let txt = `${nb.name}\n${'='.repeat(nb.name.length)}\n\n`;
   list.forEach(p=>{ txt += `${p.number}. ${benefitById(p.benefitId).text}\n\n`; });
-  const blob = new Blob([txt],{type:'text/plain'});
+  const blob = new Blob(["\uFEFF"+txt],{type:'text/plain;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${slug(nb.name)}.txt`; a.click();
 }
 function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
 
+/* ===================== Read view (flat, this notebook only) ===================== */
 function openReadView(nbId){
   const nb = nbById(nbId);
   const list = placementsForNotebook(nbId);
+  const lines = list.map(p=>({kind:'para', number:p.number, text:benefitById(p.benefitId).text}));
   document.getElementById('readTitle').textContent = "Read view — "+nb.name;
   const body = document.getElementById('readDocBody');
-  body.innerHTML = list.length ? list.map(p=>`<p><span class="rd-num">${p.number}</span>${escapeHtml(benefitById(p.benefitId).text)}</p>`).join('') : `<div class="empty">Nothing here yet.</div>`;
+  body.innerHTML = lines.length ? lines.map(l=>`<p><span class="rd-num">${l.number}</span>${escapeHtml(l.text)}</p>`).join('') : `<div class="empty">Nothing here yet.</div>`;
+  setupChunkCopy(lines);
   openModal('modalRead');
+}
+
+/* ===================== Full Book (recursive: headings > subheadings > ...) ===================== */
+function collectBenefitIds(sections){
+  const set = new Set();
+  if(!sections) return set;
+  sections.forEach(s=>{
+    s.directPlacements.forEach(p=>set.add(p.benefitId));
+    collectBenefitIds(s.subsections).forEach(id=>set.add(id));
+  });
+  return set;
+}
+function bookSectionsFor(headingNb, benefitIdFilter){
+  if(!headingNb || !headingNb.headings || !headingNb.headings.length) return null;
+  return headingNb.headings.map(h=>{
+    let plc = placements.filter(p=>p.notebookId===headingNb.id && p.headingId===h.id && benefitById(p.benefitId) && !benefitById(p.benefitId).trashed);
+    if(benefitIdFilter) plc = plc.filter(p=>benefitIdFilter.has(p.benefitId));
+    plc.sort((a,b)=>a.number-b.number);
+    const benIdsHere = new Set(plc.map(p=>p.benefitId));
+    const grandchild = headingNb.categorisedChildId ? nbById(headingNb.categorisedChildId) : null;
+    const subsections = grandchild ? bookSectionsFor(grandchild, benIdsHere) : null;
+    let directPlacements = plc;
+    if(subsections){
+      const covered = collectBenefitIds(subsections);
+      directPlacements = plc.filter(p=>!covered.has(p.benefitId));
+    }
+    return {heading:h, directPlacements, subsections};
+  });
+}
+function buildFullBook(topNb){
+  const directPlacements = placementsForNotebook(topNb.id);
+  const child = topNb.categorisedChildId ? nbById(topNb.categorisedChildId) : null;
+  const sections = child ? bookSectionsFor(child, null) : null;
+  let uncategorized = directPlacements;
+  if(sections){
+    const covered = collectBenefitIds(sections);
+    uncategorized = directPlacements.filter(p=>!covered.has(p.benefitId));
+  }
+  return {sections, uncategorized};
+}
+function flattenBook(sections, uncategorized, depth){
+  let lines = [];
+  (sections||[]).forEach(s=>{
+    lines.push({kind:'heading', text:s.heading.name, depth});
+    s.directPlacements.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text}));
+    lines = lines.concat(flattenBook(s.subsections, null, depth+1));
+  });
+  if(uncategorized && uncategorized.length){
+    lines.push({kind:'heading', text:'Not yet organised into a heading', depth:0});
+    uncategorized.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text}));
+  }
+  return lines;
+}
+function renderBookHtml(lines){
+  return lines.map(l=>{
+    if(l.kind==='heading'){
+      const tag = 'h'+Math.min(l.depth+3,6);
+      return `<${tag} style="margin:22px 0 8px;">${escapeHtml(l.text)}</${tag}>`;
+    }
+    return `<p><span class="rd-num">${l.number}</span>${escapeHtml(l.text)}</p>`;
+  }).join('');
+}
+function openFullBookView(nbId){
+  const nb = nbById(nbId);
+  const { sections, uncategorized } = buildFullBook(nb);
+  const lines = flattenBook(sections, uncategorized, 0);
+  document.getElementById('readTitle').textContent = "Full Book — "+nb.name;
+  const body = document.getElementById('readDocBody');
+  body.innerHTML = lines.length ? renderBookHtml(lines) : `<div class="empty">Nothing here yet — sort some benefits into headings first.</div>`;
+  setupChunkCopy(lines);
+  openModal('modalRead');
+}
+
+/* ===================== Shared chunked copy controls ===================== */
+function lineToPlainText(line){
+  if(line.kind==='heading') return `\n\n${'#'.repeat(Math.min(line.depth+2,5))} ${line.text}\n\n`;
+  return `${line.number}. ${line.text}\n\n`;
+}
+function buildChunks(lines, pagesN){
+  const limit = Math.max(1,pagesN) * CHARS_PER_PAGE;
+  const chunks = [];
+  let current = [], currentLen = 0;
+  lines.forEach(line=>{
+    const t = lineToPlainText(line);
+    if(current.length>0 && currentLen + t.length > limit){ chunks.push(current); current=[]; currentLen=0; }
+    current.push(line); currentLen += t.length;
+  });
+  if(current.length) chunks.push(current);
+  return chunks;
+}
+function setupChunkCopy(lines){
+  const input = document.getElementById('pagesPerChunkInput');
+  input.value = pagesPerChunk;
+  const copiedSet = new Set();
+  function draw(){
+    const totalChars = lines.reduce((s,l)=>s+lineToPlainText(l).length,0);
+    const totalPages = Math.max(1, Math.round(totalChars/CHARS_PER_PAGE));
+    const chunks = buildChunks(lines, pagesPerChunk);
+    document.getElementById('chunkSummary').textContent =
+      `${lines.filter(l=>l.kind==='para').length} benefit(s) · ~${totalPages} page(s) total · split into ${chunks.length} chunk(s) of ~${pagesPerChunk} page(s) each`;
+    const listEl = document.getElementById('chunkList');
+    listEl.innerHTML="";
+    if(chunks.length===0){ return; }
+    chunks.forEach((chunk,i)=>{
+      const paraNums = chunk.filter(l=>l.kind==='para').map(l=>l.number);
+      const rangeLabel = paraNums.length ? `covers #${paraNums[0]}–#${paraNums[paraNums.length-1]}` : '(headings only)';
+      const chunkText = chunk.map(lineToPlainText).join('');
+      const approxPages = Math.max(1, Math.round(chunkText.length/CHARS_PER_PAGE));
+      const row = document.createElement('div'); row.className='mini-row';
+      row.style.borderColor = copiedSet.has(i) ? 'var(--teal)' : 'var(--line)';
+      row.innerHTML = `<span class="grow">${copiedSet.has(i)?'✓ ':''}Chunk ${i+1} of ${chunks.length} — ${rangeLabel} (~${approxPages} page${approxPages===1?'':'s'})</span>`;
+      const btn = document.createElement('button');
+      btn.className = copiedSet.has(i) ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+      btn.textContent = copiedSet.has(i) ? 'Copied ✓' : '📋 Copy this chunk';
+      btn.addEventListener('click', ()=>{
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(chunkText).then(()=>{ copiedSet.add(i); draw(); }).catch(()=>alert("Couldn't copy — clipboard access may be blocked."));
+        } else { alert("Clipboard not available in this browser."); }
+      });
+      row.appendChild(btn);
+      listEl.appendChild(row);
+    });
+  }
+  input.oninput = ()=>{
+    const v = parseInt(input.value,10);
+    if(v && v>0){ pagesPerChunk = v; localStorage.setItem('ledger_pages_per_chunk', String(v)); copiedSet.clear(); draw(); }
+  };
+  draw();
 }
 document.getElementById('printReadBtn').addEventListener('click', ()=>window.print());
 
@@ -942,7 +1117,7 @@ document.getElementById('statsBtn').addEventListener('click', ()=>{
 /* ===================== Backup Import/Export ===================== */
 document.getElementById('dataBtn').addEventListener('click', ()=>openModal('modalData'));
 document.getElementById('exportAllBtn').addEventListener('click', ()=>{
-  const blob = new Blob([JSON.stringify({benefits,notebooks,placements,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
+  const blob = new Blob(["\uFEFF"+JSON.stringify({benefits,notebooks,placements,exportedAt:new Date().toISOString()},null,2)],{type:'application/json;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ledger-full-backup.json'; a.click();
 });
 document.getElementById('importBtn').addEventListener('click', ()=>document.getElementById('importFile').click());
