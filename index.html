@@ -25,10 +25,10 @@
   ::-webkit-scrollbar-track{background:var(--bg);}
   ::-webkit-scrollbar-thumb{background:var(--line); border-radius:5px;}
 
-  .shell{display:grid; grid-template-columns:270px 1fr; min-height:100vh;}
+  .shell{display:grid; grid-template-columns:280px 1fr; min-height:100vh;}
   @media (max-width:900px){ .shell{grid-template-columns:1fr;} .sidebar{position:fixed; z-index:40; height:100%; transform:translateX(-100%); transition:transform .2s;} .sidebar.open{transform:translateX(0);} }
 
-  .sidebar{background:var(--bg-raised); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:16px 12px; gap:10px; width:270px; overflow-y:auto;}
+  .sidebar{background:var(--bg-raised); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:16px 12px; gap:10px; width:280px; overflow-y:auto;}
   .brand{display:flex; align-items:center; gap:8px; padding:2px 4px 4px;}
   .brand .mark{font-family:var(--mono); color:var(--amber); font-size:12px; letter-spacing:2px; border:1px solid var(--amber); padding:2px 6px; border-radius:3px;}
   .brand h1{font-size:17px; font-weight:700;}
@@ -48,6 +48,7 @@
   .side-bottom{margin-top:auto; display:flex; flex-direction:column; gap:6px; padding-top:8px; border-top:1px solid var(--line);}
   .side-btn{display:flex; align-items:center; gap:6px; background:transparent; border:1px dashed var(--line); color:var(--ink-faint); border-radius:6px; padding:7px 8px; font-size:12.5px; text-align:left;}
   .side-btn:hover{color:var(--ink); border-color:var(--ink-faint);}
+  .side-btn:disabled{opacity:.4; cursor:not-allowed;}
   .theme-toggle{display:flex; align-items:center; justify-content:space-between; padding:6px 2px;}
   .theme-toggle button{background:var(--card); border:1px solid var(--line); color:var(--ink-dim); padding:5px 9px; border-radius:5px; font-size:11px;}
   .theme-toggle button.active{color:var(--ink); border-color:var(--teal);}
@@ -59,7 +60,7 @@
   .ctx-title{font-size:17px; font-weight:700;}
   .ctx-sub{font-size:11.5px; color:var(--ink-faint); font-family:var(--mono);}
   .topbar-right{display:flex; gap:8px; flex-wrap:wrap;}
-  .wrap{max-width:1200px; width:100%; margin:0 auto; padding:22px 22px 80px; display:flex; flex-direction:column; gap:18px;}
+  .wrap{max-width:1200px; width:100%; margin:0 auto; padding:22px 22px 80px; display:flex; flex-direction:column; gap:16px;}
 
   .btn{font-size:12.5px; font-weight:600; border:none; border-radius:6px; padding:8px 14px;}
   .btn:active{transform:scale(0.97);}
@@ -75,6 +76,16 @@
   .icon-btn:hover{color:var(--ink); background:var(--bg-raised);}
   .icon-btn.danger:hover{color:var(--red);}
 
+  /* Collapsible sections */
+  details.collapsible{background:var(--bg-raised); border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  details.collapsible > summary{list-style:none; cursor:pointer; padding:13px 16px; display:flex; align-items:center; gap:10px; font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--ink-dim);}
+  details.collapsible > summary::-webkit-details-marker{display:none;}
+  details.collapsible > summary::before{content:'▸'; font-size:11px; color:var(--ink-faint); transition:transform .15s;}
+  details.collapsible[open] > summary::before{transform:rotate(90deg);}
+  details.collapsible > summary .count-badge{margin-left:auto; font-family:var(--mono); font-size:10.5px; background:var(--card); color:var(--ink-faint); padding:2px 8px; border-radius:9px; text-transform:none; letter-spacing:0;}
+  details.collapsible > summary .count-badge.warn{background:var(--amber); color:#1a1408;}
+  details.collapsible > .collapsible-body{padding:0 16px 16px;}
+
   /* Import view */
   .import-box{background:var(--bg-raised); border:1px solid var(--line); border-radius:8px; padding:20px;}
   .import-box textarea{width:100%; min-height:260px; background:var(--card); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:12px; font-size:13.5px; line-height:1.6; resize:vertical;}
@@ -83,18 +94,9 @@
   .import-preview{font-family:var(--mono); font-size:12px; color:var(--teal); margin-bottom:10px;}
   .drop-zone{border:1px dashed var(--line); border-radius:6px; padding:10px; text-align:center; font-size:12px; color:var(--ink-faint); margin-bottom:10px;}
 
-  /* Quick add / paste panel */
-  .quickadd{background:var(--bg-raised); border:1px solid var(--line); border-radius:8px; padding:14px;}
-  .quickadd h3{font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:var(--ink-faint); margin-bottom:8px;}
   .quickadd textarea{width:100%; min-height:60px; background:var(--card); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:8px; font-size:13px;}
   .quickadd .row{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
 
-  /* Headings section */
-  .headings-box{background:var(--bg-raised); border:1px solid var(--line); border-radius:8px; padding:14px;}
-  .headings-box h3{font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:var(--ink-faint); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
-  .headings-box .sub{font-size:11.5px; color:var(--ink-faint); margin-bottom:10px;}
-
-  /* Triage */
   .triage-toolbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between;}
   .triage-toolbar input[type=text]{flex:1; min-width:200px; background:var(--card); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:8px 10px; font-size:13px;}
   .triage-row{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; display:flex; flex-direction:column; gap:10px; margin-bottom:10px;}
@@ -104,32 +106,29 @@
   .pill-row{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
   .pill{border:1px solid var(--line); background:var(--bg-raised); color:var(--ink-dim); border-radius:16px; padding:6px 13px; font-size:12px; display:flex; align-items:center; gap:6px;}
   .pill .num{font-family:var(--mono); font-size:9.5px; opacity:.6;}
-  .pill.sel{color:#fff; border-color:transparent;}
+  .pill:hover{border-color:var(--teal); color:var(--ink);}
   .pill.add{border-style:dashed; color:var(--ink-faint);}
   .pill.add:hover{color:var(--ink);}
-  .pill.static{cursor:default;}
   .row-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
-  .empty{text-align:center; padding:60px 20px; color:var(--ink-faint);}
-  .empty .big{font-size:32px; margin-bottom:10px;}
+  .empty{text-align:center; padding:40px 20px; color:var(--ink-faint);}
+  .empty .big{font-size:28px; margin-bottom:8px;}
   .load-more-row{display:flex; justify-content:center; margin-top:10px;}
 
-  /* Notebook view */
-  .group{margin-bottom:18px;}
-  .group-head{display:flex; align-items:center; gap:8px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid var(--line);}
-  .group-head .cat-name{font-weight:700; font-size:14px;}
-  .group-head .cat-count{font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); background:var(--bg-raised); padding:2px 7px; border-radius:10px;}
   .placement-row{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; display:flex; gap:12px; align-items:flex-start; margin-bottom:8px;}
   .placement-num{font-family:var(--mono); color:var(--amber); font-size:12px; min-width:34px; padding-top:2px;}
   .placement-body{flex:1; font-size:13.5px; line-height:1.6; white-space:pre-wrap; word-break:break-word;}
   .placement-body textarea{width:100%; min-height:70px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:8px; font-size:13.5px;}
   .placement-actions{display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; max-width:150px;}
+  .organised-chip{display:inline-block; font-size:10px; font-family:var(--mono); background:var(--bg-raised); color:var(--teal); padding:2px 7px; border-radius:8px; margin-top:5px;}
 
-  /* All benefits view */
+  .skip-row{display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .skip-row:last-child{border-bottom:none;}
+  .skip-row .txt{flex:1; color:var(--ink-dim);}
+
   .chip{font-size:10px; padding:2px 8px; border-radius:9px; color:#fff; font-family:var(--mono);}
   .benefit-row{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:8px; display:flex; flex-direction:column; gap:6px;}
   .benefit-chips{display:flex; gap:5px; flex-wrap:wrap;}
 
-  /* Modal */
   .modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto;}
   .modal-overlay.show{display:flex;}
   .modal{background:var(--bg-raised); border:1px solid var(--line); border-radius:10px; padding:22px; width:100%; max-width:560px;}
@@ -175,6 +174,7 @@
     <div id="nbList"></div>
 
     <div class="side-bottom">
+      <button class="side-btn" id="undoBtn" disabled>↩ Undo last action</button>
       <button class="side-btn" id="statsBtn">▦ Dashboard</button>
       <button class="side-btn" id="dataBtn">⇅ Import / Export Backup</button>
       <div class="theme-toggle">
@@ -193,7 +193,7 @@
       <div class="topbar-right" id="topbarActions"></div>
     </div>
     <div class="wrap" id="viewRoot"></div>
-    <footer>LEDGER · INDEXEDDB · BULK IMPORT + RECURSIVE HEADING DRILL-DOWN</footer>
+    <footer>LEDGER · INDEXEDDB · HEADINGS ARE NOTEBOOKS · TRUE NESTED TREE</footer>
   </div>
 </div>
 
@@ -254,10 +254,7 @@
 "use strict";
 
 /* ===================== IndexedDB ===================== */
-/* IMPORTANT: this name must stay stable across every future edit/deploy.
-   Renaming it wipes all data — earlier versions of this app used LedgerDB / LedgerDB2 / LedgerDB3
-   by mistake, which is why data appeared to reset after each redeploy. Never change DB_NAME again;
-   bump DB_VERSION and handle migrations in onupgradeneeded instead. */
+/* IMPORTANT: this name must stay stable across every future edit/deploy — never rename it again. */
 const DB_NAME="LedgerBenefitsDB", DB_VERSION=1;
 let db;
 function idbOpen(){
@@ -282,19 +279,15 @@ function idbGetAll(store){ return new Promise((res,rej)=>{ const r=tx(store,'rea
 function idbPut(store,obj){ return new Promise((res,rej)=>{ const r=tx(store,'readwrite').put(obj); r.onsuccess=()=>res(obj); r.onerror=(e)=>rej(e); }); }
 function idbDelete(store,id){ return new Promise((res,rej)=>{ const r=tx(store,'readwrite').delete(id); r.onsuccess=()=>res(); r.onerror=(e)=>rej(e); }); }
 
-/* One-time best-effort recovery: pull in anything left behind under the old, accidentally-renamed
-   database names (LedgerDB, LedgerDB2, LedgerDB3) so past work isn't lost. Safe to run repeatedly. */
 async function migrateOldDatabases(){
   if(localStorage.getItem('ledger_migrated_v1')) return;
   try{
     if(indexedDB.databases){
       const list = await indexedDB.databases();
       const oldNames = ["LedgerDB","LedgerDB2","LedgerDB3"].filter(n=>n!==DB_NAME);
-      for(const info of list){
-        if(info.name && oldNames.includes(info.name)) await migrateFromOldDb(info.name);
-      }
+      for(const info of list){ if(info.name && oldNames.includes(info.name)) await migrateFromOldDb(info.name); }
     }
-  }catch(e){ /* best effort only */ }
+  }catch(e){}
   localStorage.setItem('ledger_migrated_v1','1');
 }
 function migrateFromOldDb(oldName){
@@ -316,23 +309,53 @@ function migrateFromOldDb(oldName){
           }
         }
       }catch(err){}
-      odb.close();
-      resolve();
+      odb.close(); resolve();
     };
     req.onerror = ()=>resolve();
   });
 }
 
+/* One-time cleanup: the old heading system generated broken "X — Categorised" notebooks that shared
+   sub-headings across unrelated branches (a real bug). Removing them; benefits and top-level category
+   placements are untouched — only that old broken heading layer is cleared so it can be redone correctly. */
+async function cleanupLegacyCategorisedNotebooks(){
+  if(localStorage.getItem('ledger_legacy_cleanup_v2')) return;
+  const legacy = notebooks.filter(n=>/ — Categorised$/.test(n.name||""));
+  for(const nb of legacy){ await deleteNotebookAndDescendants(nb.id); }
+  localStorage.setItem('ledger_legacy_cleanup_v2','1');
+}
+
 /* ===================== State ===================== */
 let benefits=[], notebooks=[], placements=[];
 let view = {type:'import'};
-let skippedIds = new Set();      // scope-prefixed benefit ids, session only
+let skippedIds = new Set();      // scope-prefixed benefit ids ("scopeKey::benefitId"), session only
 let pendingLimit=40, notebookLimit=100, allBenefitsLimit=60, headingPendingLimit=40;
 let pagesPerChunk = parseInt(localStorage.getItem('ledger_pages_per_chunk')||'10',10);
-const CHARS_PER_PAGE = 3000; // rough estimate of characters on one printed page
+const CHARS_PER_PAGE = 3000;
 const PALETTE=["#d4a24c","#5eb1a3","#c86b5a","#6f9bd1","#a689c9","#8bbf5a","#d17aa8","#7a8fa6"];
 function uid(p){ return p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* ===================== Undo stack ===================== */
+let undoStack = [];
+function pushUndo(label, undoFn){ undoStack.push({label, undoFn}); if(undoStack.length>50) undoStack.shift(); updateUndoBtn(); }
+async function performUndo(){
+  const last = undoStack.pop();
+  if(!last){ updateUndoBtn(); return; }
+  await last.undoFn();
+  updateUndoBtn();
+  renderSidebar(); renderView();
+}
+function updateUndoBtn(){
+  const btn = document.getElementById('undoBtn');
+  const last = undoStack[undoStack.length-1];
+  btn.disabled = !last;
+  btn.textContent = last ? `↩ Undo: ${last.label}` : '↩ Undo last action';
+}
+document.getElementById('undoBtn').addEventListener('click', performUndo);
+document.addEventListener('keydown',(e)=>{
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); performUndo(); }
+});
 
 /* ===================== Boot ===================== */
 async function boot(){
@@ -342,10 +365,11 @@ async function boot(){
   placements = await idbGetAll('placements');
 
   await migrateOldDatabases();
+  await cleanupLegacyCategorisedNotebooks();
 
   if(topLevelNotebooks().length===0){
     for(const name of ["Aqeedah","Fiqh","Usul","Miscellaneous"]){
-      const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, categorisedChildId:null, headings:[], nextNumber:1, createdAt:Date.now()};
+      const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, nextNumber:1, createdAt:Date.now()};
       notebooks.push(nb); await idbPut('notebooks',nb);
     }
   }
@@ -356,6 +380,7 @@ async function boot(){
 
   renderSidebar();
   renderView();
+  updateUndoBtn();
 }
 
 /* ===================== Helpers ===================== */
@@ -377,26 +402,21 @@ function pendingForTopLevelTriage(){
     return !placements.some(p=>p.benefitId===b.id && topIds.has(p.notebookId));
   }).sort((a,b)=>a.order-b.order);
 }
-function pendingForHeadings(parentNb){
-  const childId = parentNb.categorisedChildId;
-  const placedInParent = placements.filter(p=>p.notebookId===parentNb.id);
-  const uniqueBenIds = [...new Set(placedInParent.map(p=>p.benefitId))];
+/* benefits placed directly in nb that have NOT yet been placed into any of nb's own children */
+function pendingForChildren(nb){
+  const childIds = new Set(childrenOf(nb.id).map(c=>c.id));
+  const placedInNb = placements.filter(p=>p.notebookId===nb.id);
+  const uniqueBenIds = [...new Set(placedInNb.map(p=>p.benefitId))];
   return uniqueBenIds.map(benefitById).filter(b=>{
     if(!b || b.trashed) return false;
-    if(skippedIds.has('hd::'+parentNb.id+'::'+b.id)) return false;
-    if(!childId) return true;
-    return !placements.some(p=>p.benefitId===b.id && p.notebookId===childId);
+    if(skippedIds.has('hd::'+nb.id+'::'+b.id)) return false;
+    if(childIds.size===0) return true;
+    return !placements.some(p=>p.benefitId===b.id && childIds.has(p.notebookId));
   });
 }
-
-function ensureCategorisedChild(parentNb){
-  if(parentNb.categorisedChildId && nbById(parentNb.categorisedChildId)) return nbById(parentNb.categorisedChildId);
-  const child = {id:uid('nb'), name:parentNb.name+' — Categorised', color:parentNb.color, parentId:parentNb.id, categorisedChildId:null, headings:[], nextNumber:1, createdAt:Date.now()};
-  notebooks.push(child);
-  parentNb.categorisedChildId = child.id;
-  idbPut('notebooks', child);
-  idbPut('notebooks', parentNb);
-  return child;
+function skippedBenefitsForScope(scopeKey){
+  const prefix = scopeKey+'::';
+  return [...skippedIds].filter(k=>k.startsWith(prefix)).map(k=>benefitById(k.slice(prefix.length))).filter(Boolean);
 }
 
 /* ===================== Sidebar ===================== */
@@ -434,9 +454,10 @@ function renderSidebar(){
     });
   }
   renderLevel(null, 0);
+  updateUndoBtn();
 }
 function notebookContextMenu(nb){
-  const action = prompt(`Notebook: "${nb.name}"\n\nType RENAME to rename, DELETE to delete (and any of its Categorised children), or cancel.`,"");
+  const action = prompt(`Notebook: "${nb.name}"\n\nType RENAME to rename, DELETE to delete (and everything nested under it), or cancel.`,"");
   if(!action) return;
   const a=action.trim().toUpperCase();
   if(a==='RENAME'){
@@ -444,7 +465,10 @@ function notebookContextMenu(nb){
     if(n&&n.trim()){ nb.name=n.trim(); idbPut('notebooks',nb); renderSidebar(); renderView(); }
   } else if(a==='DELETE'){
     if(confirm(`Delete notebook "${nb.name}" and everything nested under it? Benefits themselves are kept, only placements here are removed.`)){
-      deleteNotebookAndDescendants(nb.id);
+      deleteNotebookAndDescendants(nb.id).then(()=>{
+        if(view.type==='notebook' && view.id===nb.id) switchView({type:'all'});
+        else { renderSidebar(); renderView(); }
+      });
     }
   }
 }
@@ -453,15 +477,8 @@ async function deleteNotebookAndDescendants(nbId){
   const toRemove = placements.filter(p=>p.notebookId===nbId);
   for(const p of toRemove) await idbDelete('placements',p.id);
   placements = placements.filter(p=>p.notebookId!==nbId);
-  const nb = nbById(nbId);
-  if(nb && nb.parentId){
-    const parent = nbById(nb.parentId);
-    if(parent && parent.categorisedChildId===nbId){ parent.categorisedChildId=null; await idbPut('notebooks',parent); }
-  }
   await idbDelete('notebooks',nbId);
   notebooks = notebooks.filter(n=>n.id!==nbId);
-  if(view.type==='notebook' && view.id===nbId) switchView({type:'all'});
-  else { renderSidebar(); renderView(); }
 }
 
 document.getElementById('menuBtn').addEventListener('click', ()=>document.getElementById('sidebar').classList.toggle('open'));
@@ -473,11 +490,12 @@ PALETTE.forEach(c=>{
   s.addEventListener('click',()=>{ pickedColor=c; swatchWrap.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel')); s.classList.add('sel'); });
   swatchWrap.appendChild(s);
 });
-document.getElementById('addNbBtn').addEventListener('click',(e)=>{ e.stopPropagation(); openModal('modalNb'); });
+let modalNbParentId = null;
+document.getElementById('addNbBtn').addEventListener('click',(e)=>{ e.stopPropagation(); modalNbParentId=null; openModal('modalNb'); });
 document.getElementById('createNbBtn').addEventListener('click', async ()=>{
   const name=document.getElementById('nbNameInput').value.trim();
   if(!name){ alert("Give it a name."); return; }
-  const nb={id:uid('nb'), name, color:pickedColor, parentId:null, categorisedChildId:null, headings:[], nextNumber:1, createdAt:Date.now()};
+  const nb={id:uid('nb'), name, color:pickedColor, parentId:modalNbParentId, nextNumber:1, createdAt:Date.now()};
   notebooks.push(nb); await idbPut('notebooks',nb);
   document.getElementById('nbNameInput').value="";
   closeModal('modalNb');
@@ -495,7 +513,7 @@ function renderView(){
   const root=document.getElementById('viewRoot');
   const actions=document.getElementById('topbarActions');
   root.innerHTML=""; actions.innerHTML="";
-  document.onkeydown=null;
+  document.onkeydown_triage=null;
   if(view.type==='import') renderImportView(root, actions);
   else if(view.type==='triage') renderTriageView(root, actions);
   else if(view.type==='notebook') renderNotebookView(root, actions, view.id);
@@ -517,11 +535,10 @@ function makeCopyBtn(text){
   return btn;
 }
 
-/* ===================== Line splitting (newline OR 3+ dots / ellipsis) ===================== */
+/* ===================== Line splitting ===================== */
 function splitLines(text, dedupe, skipBlank){
   let lines = text.split(/\.{3,}|\u2026|\r\n|\r|\n/);
-  if(skipBlank) lines = lines.map(l=>l.trim()).filter(l=>l.length>0);
-  else lines = lines.map(l=>l.trim());
+  lines = skipBlank ? lines.map(l=>l.trim()).filter(l=>l.length>0) : lines.map(l=>l.trim());
   if(dedupe){ const seen=new Set(); lines = lines.filter(l=>{ if(seen.has(l)) return false; seen.add(l); return true; }); }
   return lines;
 }
@@ -551,12 +568,9 @@ function renderImportView(root, actions){
   ta.addEventListener('input', updatePreview);
   document.getElementById('optDedupe').addEventListener('change', updatePreview);
   document.getElementById('optMinLen').addEventListener('change', updatePreview);
-
   document.getElementById('fileInput').addEventListener('change', (e)=>{
     const f=e.target.files[0]; if(!f) return;
-    const r=new FileReader();
-    r.onload=(ev)=>{ ta.value = ev.target.result; updatePreview(); };
-    r.readAsText(f);
+    const r=new FileReader(); r.onload=(ev)=>{ ta.value = ev.target.result; updatePreview(); }; r.readAsText(f);
   });
   const dz = document.getElementById('dropZone');
   dz.addEventListener('click', ()=>document.getElementById('fileInput').click());
@@ -567,20 +581,45 @@ function renderImportView(root, actions){
     const f=e.dataTransfer.files[0]; if(!f) return;
     const r=new FileReader(); r.onload=(ev)=>{ ta.value=ev.target.result; updatePreview(); }; r.readAsText(f);
   });
-
   document.getElementById('doImportBtn').addEventListener('click', async ()=>{
     const lines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
     if(!lines.length){ alert("Nothing to import — paste some text first."); return; }
     let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
     for(const line of lines){
       const b={id:uid('ben'), text:line, trashed:false, createdAt:Date.now(), order:order++};
-      benefits.push(b);
-      await idbPut('benefits', b);
+      benefits.push(b); await idbPut('benefits', b);
     }
     ta.value=""; updatePreview();
     alert(`Imported ${lines.length} benefits. Now sort them with Triage: New Benefits.`);
     switchView({type:'triage'});
   });
+}
+
+/* ===================== Skipped list widget (shared) ===================== */
+function renderSkippedBlock(container, scopeKey, onRestore){
+  const skipped = skippedBenefitsForScope(scopeKey);
+  const det = document.createElement('details'); det.className='collapsible'; det.style.marginTop='10px';
+  det.innerHTML = `<summary>Skipped<span class="count-badge ${skipped.length?'warn':''}">${skipped.length}</span></summary><div class="collapsible-body" id="skipBody"></div>`;
+  const body = det.querySelector('#skipBody');
+  if(skipped.length===0){
+    body.innerHTML = `<div class="hint">Nothing skipped.</div>`;
+  } else {
+    const restoreAllBtn = document.createElement('button'); restoreAllBtn.className='btn btn-ghost btn-sm'; restoreAllBtn.textContent='Restore all skipped'; restoreAllBtn.style.marginBottom='8px';
+    restoreAllBtn.addEventListener('click', ()=>{
+      skipped.forEach(b=>skippedIds.delete(scopeKey+'::'+b.id));
+      onRestore();
+    });
+    body.appendChild(restoreAllBtn);
+    skipped.forEach(b=>{
+      const row=document.createElement('div'); row.className='skip-row';
+      row.innerHTML = `<span class="txt">${escapeHtml(b.text)}</span>`;
+      const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm'; btn.textContent='Restore to pending';
+      btn.addEventListener('click', ()=>{ skippedIds.delete(scopeKey+'::'+b.id); onRestore(); });
+      row.appendChild(btn);
+      body.appendChild(row);
+    });
+  }
+  container.appendChild(det);
 }
 
 /* ===================== TRIAGE VIEW (top-level sort) ===================== */
@@ -589,16 +628,8 @@ function renderTriageView(root, actions){
   const pending = pendingForTopLevelTriage();
   document.getElementById('ctxSub').textContent = pending.length + " pending";
 
-  const skippedCount = [...skippedIds].filter(k=>k.startsWith('top::')).length;
-  const showSkippedBtn = document.createElement('button');
-  showSkippedBtn.className='btn btn-ghost btn-sm';
-  showSkippedBtn.textContent = skippedCount>0 ? `Show skipped (${skippedCount})` : 'No skipped';
-  showSkippedBtn.disabled = skippedCount===0;
-  showSkippedBtn.addEventListener('click', ()=>{ [...skippedIds].filter(k=>k.startsWith('top::')).forEach(k=>skippedIds.delete(k)); renderView(); });
-  actions.appendChild(showSkippedBtn);
-
   const nbs = topLevelNotebooks();
-  root.innerHTML = `<div class="triage-toolbar"><input type="text" id="triageSearch" placeholder="Search pending text..."></div><div id="triageList"></div><div class="load-more-row" id="triageLoadMore"></div>`;
+  root.innerHTML = `<div class="triage-toolbar"><input type="text" id="triageSearch" placeholder="Search pending text..."></div><div id="triageList"></div><div class="load-more-row" id="triageLoadMore"></div><div id="skipHolder"></div>`;
   const search = document.getElementById('triageSearch');
   let filtered = pending;
 
@@ -607,41 +638,45 @@ function renderTriageView(root, actions){
     filtered = q ? pending.filter(b=>b.text.toLowerCase().includes(q)) : pending;
     const listEl = document.getElementById('triageList');
     listEl.innerHTML="";
-    if(nbs.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>No notebooks yet. Add one from the sidebar first.</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; return; }
-    if(filtered.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">✓</div><div>${pending.length===0?"Nothing pending — all caught up.":"No matches."}</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; return; }
-    const shown = filtered.slice(0,pendingLimit);
-    shown.forEach((b,idx)=>listEl.appendChild(renderTriageRow(b, nbs, 'top', idx===0, (nid,name)=>{
-      const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, categorisedChildId:null, headings:[], nextNumber:1, createdAt:Date.now()};
-      notebooks.push(nb); idbPut('notebooks',nb); return nb;
-    }, (benId, selectedIds, after)=>confirmIntoNotebooks(benId, selectedIds, after))));
-    const lm = document.getElementById('triageLoadMore'); lm.innerHTML="";
-    if(filtered.length>pendingLimit){
-      const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
-      btn.textContent=`Load more (${filtered.length-pendingLimit} remaining)`;
-      btn.addEventListener('click', ()=>{ pendingLimit+=40; draw(); });
-      lm.appendChild(btn);
+    if(nbs.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>No notebooks yet. Add one from the sidebar first.</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; }
+    else if(filtered.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">✓</div><div>${pending.length===0?"Nothing pending — all caught up.":"No matches."}</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; }
+    else {
+      const shown = filtered.slice(0,pendingLimit);
+      shown.forEach((b,idx)=>listEl.appendChild(renderTriageRow(b, nbs, 'top', idx===0, (name)=>{
+        const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, nextNumber:1, createdAt:Date.now()};
+        notebooks.push(nb); idbPut('notebooks',nb); return nb;
+      })));
+      const lm = document.getElementById('triageLoadMore'); lm.innerHTML="";
+      if(filtered.length>pendingLimit){
+        const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
+        btn.textContent=`Load more (${filtered.length-pendingLimit} remaining)`;
+        btn.addEventListener('click', ()=>{ pendingLimit+=40; draw(); });
+        lm.appendChild(btn);
+      }
     }
+    const skipHolder = document.getElementById('skipHolder'); skipHolder.innerHTML="";
+    renderSkippedBlock(skipHolder, 'top', ()=>{ renderSidebar(); draw(); });
   }
   search.addEventListener('input', ()=>{ pendingLimit=40; draw(); });
   draw();
 
-  document.onkeydown = (e)=>{
-    if(view.type!=='triage') return;
+  document.onkeydown_triage = (e)=>{
     if(document.activeElement && (document.activeElement.tagName==='TEXTAREA'||document.activeElement===search)) return;
     const firstRow = filtered[0];
     if(!firstRow) return;
     const digit = parseInt(e.key,10);
     if(digit>=1 && digit<=9 && nbs[digit-1]){
-      confirmIntoNotebooks(firstRow.id, [nbs[digit-1].id], ()=>{ pendingLimit=40; draw(); renderSidebar(); });
-    }
-    else if(e.key.toLowerCase()==='s'){ skippedIds.add('top::'+firstRow.id); draw(); renderSidebar(); }
+      confirmIntoNotebooks(firstRow.id, [nbs[digit-1].id]).then(created=>{
+        pushUndo(`sorted a benefit → ${nbs[digit-1].name}`, ()=>undoPlacements(created));
+        pendingLimit=40; renderSidebar(); draw();
+      });
+    } else if(e.key.toLowerCase()==='s'){ skippedIds.add('top::'+firstRow.id); renderSidebar(); draw(); }
   };
 }
+document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.onkeydown_triage) document.onkeydown_triage(e); });
 
-/* generic triage row renderer — clicking a pill instantly places the benefit and the row disappears.
-   onAddNew(name) creates+returns a new target and immediately places into it too.
-   onConfirm(benId, selectedIdsArray, after) performs the actual placement write for this context */
-function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew, onConfirm){
+/* generic triage row: clicking a pill instantly places the benefit (single choice) and the row disappears */
+function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
   const el = document.createElement('div');
   el.className='triage-row'+(isFocused?' focused':'');
   el.innerHTML = `
@@ -652,15 +687,21 @@ function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew, onConfirm){
     </div>
     <div class="row-actions"></div>`;
   el.querySelectorAll('[data-t]').forEach(pillEl=>{
-    pillEl.addEventListener('click', ()=>{
-      onConfirm(b.id, [pillEl.dataset.t], ()=>{ renderSidebar(); renderView(); });
+    pillEl.addEventListener('click', async ()=>{
+      const targetId = pillEl.dataset.t;
+      const targetLabel = targets.find(t=>t.id===targetId)?.name || '';
+      const created = await confirmIntoNotebooks(b.id, [targetId]);
+      pushUndo(`sorted a benefit → ${targetLabel}`, ()=>undoPlacements(created));
+      renderSidebar(); renderView();
     });
   });
-  el.querySelector('[data-role="addnb"]').addEventListener('click', ()=>{
+  el.querySelector('[data-role="addnb"]').addEventListener('click', async ()=>{
     const name = prompt("New name:");
     if(name && name.trim()){
-      const t = onAddNew(uid('x'), name.trim());
-      onConfirm(b.id, [t.id], ()=>{ renderSidebar(); renderView(); });
+      const t = onAddNew(name.trim());
+      const created = await confirmIntoNotebooks(b.id, [t.id]);
+      pushUndo(`sorted a benefit → ${t.name}`, ()=>undoPlacements(created));
+      renderSidebar(); renderView();
     }
   });
   const actions = el.querySelector('.row-actions');
@@ -672,33 +713,32 @@ function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew, onConfirm){
     disp.querySelector('[data-role="savetext"]').addEventListener('click', async ()=>{ b.text = disp.querySelector('textarea').value; await idbPut('benefits', b); renderView(); });
   });
   const skipBtn=document.createElement('button'); skipBtn.className='btn btn-ghost btn-sm'; skipBtn.textContent='Skip';
-  skipBtn.addEventListener('click', ()=>{ skippedIds.add(scopeKey+'::'+b.id); renderSidebar(); renderView(); });
+  skipBtn.addEventListener('click', ()=>{
+    skippedIds.add(scopeKey+'::'+b.id);
+    pushUndo(`skipped a benefit`, ()=>{ skippedIds.delete(scopeKey+'::'+b.id); });
+    renderSidebar(); renderView();
+  });
   actions.appendChild(editBtn); actions.appendChild(skipBtn);
   return el;
 }
 
-/* confirm callback for placing a benefit into one or more top-level (or general) notebooks */
-async function confirmIntoNotebooks(benId, selectedIds, after){
+/* places a benefit into one or more notebooks; returns the created placement objects (for undo) */
+async function confirmIntoNotebooks(benId, selectedIds){
+  const created = [];
   for(const nbId of selectedIds){
     const nb = nbById(nbId);
     if(!nb) continue;
-    const placement = {id:uid('pl'), benefitId:benId, notebookId:nbId, headingId:null, number: nb.nextNumber||1, addedAt:Date.now()};
-    placements.push(placement); await idbPut('placements', placement);
+    const placement = {id:uid('pl'), benefitId:benId, notebookId:nbId, number: nb.nextNumber||1, addedAt:Date.now()};
+    placements.push(placement); await idbPut('placements', placement); created.push(placement);
     nb.nextNumber = (nb.nextNumber||1)+1; await idbPut('notebooks', nb);
   }
-  if(after) after();
+  return created;
 }
-
-/* confirm callback for placing a benefit under one or more headings inside a parent's Categorised child */
-async function confirmIntoHeadings(benId, parentNb, selectedHeadingIds, after){
-  const child = ensureCategorisedChild(parentNb);
-  for(const headingId of selectedHeadingIds){
-    const placement = {id:uid('pl'), benefitId:benId, notebookId:child.id, headingId, number: child.nextNumber||1, addedAt:Date.now()};
-    placements.push(placement); await idbPut('placements', placement);
-    child.nextNumber = (child.nextNumber||1)+1;
+async function undoPlacements(createdPlacements){
+  for(const pl of createdPlacements){
+    await idbDelete('placements', pl.id);
+    placements = placements.filter(x=>x.id!==pl.id);
   }
-  await idbPut('notebooks', child);
-  if(after) after();
 }
 
 /* ===================== NOTEBOOK VIEW ===================== */
@@ -706,8 +746,9 @@ function renderNotebookView(root, actions, nbId){
   const nb = nbById(nbId);
   if(!nb){ switchView({type:'all'}); return; }
   const list = placementsForNotebook(nbId);
+  const children = childrenOf(nbId);
   document.getElementById('ctxTitle').textContent = nb.name;
-  document.getElementById('ctxSub').textContent = list.length + " benefit"+(list.length===1?"":"s");
+  document.getElementById('ctxSub').textContent = list.length + " benefit"+(list.length===1?"":"s") + (children.length? ` · ${children.length} heading${children.length===1?'':'s'}`:'');
 
   const readBtn=document.createElement('button'); readBtn.className='btn btn-ghost btn-sm'; readBtn.textContent='📖 Read view';
   readBtn.addEventListener('click', ()=>openReadView(nbId));
@@ -719,143 +760,135 @@ function renderNotebookView(root, actions, nbId){
 
   root.innerHTML="";
 
-  /* --- Quick add / paste --- */
-  const qa = document.createElement('div'); qa.className='quickadd';
-  qa.innerHTML = `<h3>Quick add / paste a benefit here</h3>
-    <textarea id="qaText" placeholder="Paste or type a single benefit to drop directly into this notebook..."></textarea>
-    <div class="row">
-      <button class="btn btn-ghost btn-sm" id="qaPaste">📋 Paste from clipboard</button>
-      <button class="btn btn-primary btn-sm" id="qaAdd">Add to this notebook</button>
+  /* --- Quick add / paste (collapsed by default) --- */
+  const qaDet = document.createElement('details'); qaDet.className='collapsible';
+  qaDet.innerHTML = `<summary>Quick add / paste a benefit here</summary>
+    <div class="collapsible-body quickadd">
+      <textarea id="qaText" placeholder="Paste or type a single benefit to drop directly into this notebook..."></textarea>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" id="qaPaste">📋 Paste from clipboard</button>
+        <button class="btn btn-primary btn-sm" id="qaAdd">Add to this notebook</button>
+      </div>
     </div>`;
-  root.appendChild(qa);
-  document.getElementById('qaPaste').addEventListener('click', async ()=>{
-    try{
-      const text = await navigator.clipboard.readText();
-      document.getElementById('qaText').value = text;
-    }catch(err){ alert("Couldn't read clipboard automatically — paste manually with Ctrl/Cmd+V into the box."); }
+  root.appendChild(qaDet);
+  qaDet.querySelector('#qaPaste').addEventListener('click', async ()=>{
+    try{ document.getElementById('qaText').value = await navigator.clipboard.readText(); }
+    catch(err){ alert("Couldn't read clipboard automatically — paste manually with Ctrl/Cmd+V into the box."); }
   });
-  document.getElementById('qaAdd').addEventListener('click', async ()=>{
+  qaDet.querySelector('#qaAdd').addEventListener('click', async ()=>{
     const txt = document.getElementById('qaText').value.trim();
     if(!txt){ alert("Nothing to add."); return; }
     let order = benefits.length ? Math.max(...benefits.map(x=>x.order))+1 : 0;
     const b = {id:uid('ben'), text:txt, trashed:false, createdAt:Date.now(), order};
     benefits.push(b); await idbPut('benefits', b);
-    const placement = {id:uid('pl'), benefitId:b.id, notebookId:nb.id, headingId:null, number: nb.nextNumber||1, addedAt:Date.now()};
-    placements.push(placement); await idbPut('placements', placement);
-    nb.nextNumber = (nb.nextNumber||1)+1; await idbPut('notebooks', nb);
+    const created = await confirmIntoNotebooks(b.id, [nb.id]);
+    pushUndo(`added a new benefit → ${nb.name}`, async ()=>{ await undoPlacements(created); await idbDelete('benefits', b.id); benefits=benefits.filter(x=>x.id!==b.id); });
     document.getElementById('qaText').value="";
     renderSidebar(); renderView();
   });
 
-  /* --- Headings drill-down section --- */
-  const child = nb.categorisedChildId ? nbById(nb.categorisedChildId) : null;
-  const headings = child ? child.headings : [];
-  const hdPending = pendingForHeadings(nb);
+  /* --- Sort into headings (open by default — the main task) --- */
+  const hdPending = pendingForChildren(nb);
+  const hdDet = document.createElement('details'); hdDet.className='collapsible'; hdDet.open = true; hdDet.style.marginTop='12px';
+  hdDet.innerHTML = `<summary>Sort into headings / subheadings<span class="count-badge ${hdPending.length?'warn':''}">${hdPending.length} pending</span></summary>
+    <div class="collapsible-body">
+      <div class="hint" style="margin-bottom:10px;">Add headings for this notebook (e.g. Wudu, Ghusl, Siwak) — each heading is its own notebook, so it can have its own sub-headings too. Tap once to file a benefit; nothing extra to confirm.</div>
+      <div class="pill-row" id="headingPillBar" style="margin-bottom:10px;"></div>
+      <div id="headingTriageList"></div>
+      <div class="load-more-row" id="headingLoadMore"></div>
+      <div id="hdSkipHolder"></div>
+    </div>`;
+  root.appendChild(hdDet);
 
-  const hb = document.createElement('div'); hb.className='headings-box';
-  hb.innerHTML = `<h3><span>Sort into headings / subcategories</span>${child?`<button class="btn btn-ghost btn-sm" id="openChildBtn">Open "${escapeHtml(child.name)}" →</button>`:''}</h3>
-    <div class="sub">Give this notebook its own subheadings (e.g. wudu, ghusl, siwak). Sorted benefits move into a new "${escapeHtml(nb.name)} — Categorised" notebook, grouped by heading — the originals stay right here so you can keep adding more.</div>
-    <div class="pill-row" id="headingPillBar" style="margin-bottom:10px;"></div>
-    <div id="headingTriageList"></div>
-    <div class="load-more-row" id="headingLoadMore"></div>`;
-  root.appendChild(hb);
-  if(child){ document.getElementById('openChildBtn').addEventListener('click', ()=>switchView({type:'notebook', id:child.id})); }
-
-  const pillBar = document.getElementById('headingPillBar');
-  headings.forEach(h=>{
-    const p=document.createElement('span'); p.className='pill static'; p.style.background=h.color; p.style.color='#fff'; p.style.borderColor=h.color;
-    p.textContent = h.name + ' (' + (child?placements.filter(pl=>pl.notebookId===child.id&&pl.headingId===h.id).length:0) + ')';
+  const pillBar = hdDet.querySelector('#headingPillBar');
+  children.forEach(c=>{
+    const p=document.createElement('span'); p.className='pill'; p.style.cursor='default';
+    p.innerHTML = `<span class="nb-dot" style="background:${c.color}"></span>${escapeHtml(c.name)} <span class="num">(${placementsForNotebook(c.id).length})</span>`;
+    p.addEventListener('click', ()=>switchView({type:'notebook', id:c.id}));
+    p.style.cursor='pointer';
     pillBar.appendChild(p);
   });
   const addHdBtn=document.createElement('button'); addHdBtn.className='pill add'; addHdBtn.textContent='+ add heading';
   addHdBtn.addEventListener('click', ()=>{
-    const name = prompt("New heading/subcategory name (e.g. Wudu, Ghusl, Siwak):");
+    const name = prompt("New heading/subheading name (e.g. Wudu, Ghusl, Siwak):");
     if(name && name.trim()){
-      const c = ensureCategorisedChild(nb);
-      const h = {id:uid('hd'), name:name.trim(), color:PALETTE[c.headings.length%PALETTE.length]};
-      c.headings.push(h); idbPut('notebooks', c);
+      const h = {id:uid('nb'), name:name.trim(), color:PALETTE[notebooks.length%PALETTE.length], parentId:nb.id, nextNumber:1, createdAt:Date.now()};
+      notebooks.push(h); idbPut('notebooks', h);
       renderSidebar(); renderView();
     }
   });
   pillBar.appendChild(addHdBtn);
 
-  const htList = document.getElementById('headingTriageList');
+  const htList = hdDet.querySelector('#headingTriageList');
   function drawHeadings(){
     htList.innerHTML="";
-    if(headings.length===0){
+    const currentChildren = childrenOf(nb.id);
+    if(currentChildren.length===0){
       htList.innerHTML = `<div class="empty"><div class="big">▢</div><div>Add a heading above to start splitting this notebook further.</div></div>`;
-      document.getElementById('headingLoadMore').innerHTML=""; return;
-    }
-    if(hdPending.length===0){
+      hdDet.querySelector('#headingLoadMore').innerHTML="";
+    } else if(hdPending.length===0){
       htList.innerHTML = `<div class="empty"><div class="big">✓</div><div>Nothing pending for headings right now.</div></div>`;
-      document.getElementById('headingLoadMore').innerHTML=""; return;
+      hdDet.querySelector('#headingLoadMore').innerHTML="";
+    } else {
+      hdPending.slice(0,headingPendingLimit).forEach(b=>{
+        htList.appendChild(renderTriageRow(b, currentChildren, 'hd::'+nb.id, false, (name)=>{
+          const h = {id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:nb.id, nextNumber:1, createdAt:Date.now()};
+          notebooks.push(h); idbPut('notebooks', h); return h;
+        }));
+      });
+      const lm = hdDet.querySelector('#headingLoadMore'); lm.innerHTML="";
+      if(hdPending.length>headingPendingLimit){
+        const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
+        btn.textContent=`Load more (${hdPending.length-headingPendingLimit} remaining)`;
+        btn.addEventListener('click', ()=>{ headingPendingLimit+=40; drawHeadings(); });
+        lm.appendChild(btn);
+      }
     }
-    const currentChild = ensureCategorisedChild(nb);
-    hdPending.slice(0,headingPendingLimit).forEach((b,idx)=>{
-      htList.appendChild(renderTriageRow(b, currentChild.headings, 'hd::'+nb.id, false, (id,name)=>{
-        const h={id:uid('hd'), name, color:PALETTE[currentChild.headings.length%PALETTE.length]};
-        currentChild.headings.push(h); idbPut('notebooks', currentChild); return h;
-      }, (benId, selectedIds, after)=>confirmIntoHeadings(benId, nb, selectedIds, after)));
-    });
-    document.getElementById('headingLoadMore').innerHTML="";
-    if(hdPending.length>headingPendingLimit){
-      const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
-      btn.textContent=`Load more (${hdPending.length-headingPendingLimit} remaining)`;
-      btn.addEventListener('click', ()=>{ headingPendingLimit+=40; drawHeadings(); });
-      document.getElementById('headingLoadMore').appendChild(btn);
-    }
+    const skipHolder = hdDet.querySelector('#hdSkipHolder'); skipHolder.innerHTML="";
+    renderSkippedBlock(skipHolder, 'hd::'+nb.id, ()=>{ renderSidebar(); renderView(); });
   }
   drawHeadings();
 
-  /* --- Main placements list, grouped by heading if applicable --- */
-  const listWrap = document.createElement('div');
-  root.appendChild(listWrap);
-  const toolbar = document.createElement('div'); toolbar.className='triage-toolbar';
-  toolbar.innerHTML = `<input type="text" id="nbSearch" placeholder="Search within this notebook...">`;
-  listWrap.appendChild(toolbar);
-  const bodyWrap = document.createElement('div'); bodyWrap.id='nbBody'; listWrap.appendChild(bodyWrap);
-  const lmWrap = document.createElement('div'); lmWrap.className='load-more-row'; lmWrap.id='nbLoadMore'; listWrap.appendChild(lmWrap);
-
-  const search = document.getElementById('nbSearch');
+  /* --- Main placements list (open by default) --- */
+  const childIds = new Set(children.map(c=>c.id));
+  const listDet = document.createElement('details'); listDet.className='collapsible'; listDet.open = true; listDet.style.marginTop='12px';
+  listDet.innerHTML = `<summary>All benefits in this notebook<span class="count-badge">${list.length}</span></summary>
+    <div class="collapsible-body">
+      <div class="triage-toolbar" style="margin-bottom:10px;"><input type="text" id="nbSearch" placeholder="Search within this notebook..."></div>
+      <div id="nbBody"></div>
+      <div class="load-more-row" id="nbLoadMore"></div>
+    </div>`;
+  root.appendChild(listDet);
+  const search = listDet.querySelector('#nbSearch');
+  const bodyWrap = listDet.querySelector('#nbBody');
   function drawList(){
     const q = search.value.trim().toLowerCase();
     const filtered = q ? list.filter(p=>benefitById(p.benefitId).text.toLowerCase().includes(q)) : list;
     bodyWrap.innerHTML="";
     if(filtered.length===0){
       bodyWrap.innerHTML = `<div class="empty"><div class="big">▢</div><div>${list.length===0?"No benefits placed here yet.":"No matches."}</div></div>`;
-      document.getElementById('nbLoadMore').innerHTML=""; return;
+      listDet.querySelector('#nbLoadMore').innerHTML=""; return;
     }
-    const hasHeadingGroups = filtered.some(p=>p.headingId);
-    if(hasHeadingGroups && headings.length){
-      const groups = {};
-      filtered.forEach(p=>{ const k=p.headingId||'__none__'; (groups[k]=groups[k]||[]).push(p); });
-      Object.keys(groups).forEach(hid=>{
-        const h = headings.find(x=>x.id===hid);
-        const g=document.createElement('div'); g.className='group';
-        g.innerHTML = `<div class="group-head"><span class="nb-dot" style="background:${h?h.color:'#888'}"></span><span class="cat-name">${escapeHtml(h?h.name:'Ungrouped')}</span><span class="cat-count">${groups[hid].length}</span></div>`;
-        groups[hid].slice(0,notebookLimit).forEach(p=>g.appendChild(renderPlacementRow(p)));
-        bodyWrap.appendChild(g);
-      });
-      document.getElementById('nbLoadMore').innerHTML="";
-    } else {
-      filtered.slice(0,notebookLimit).forEach(p=>bodyWrap.appendChild(renderPlacementRow(p)));
-      const lm=document.getElementById('nbLoadMore'); lm.innerHTML="";
-      if(filtered.length>notebookLimit){
-        const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
-        btn.textContent=`Load more (${filtered.length-notebookLimit} remaining)`;
-        btn.addEventListener('click', ()=>{ notebookLimit+=100; drawList(); });
-        lm.appendChild(btn);
-      }
+    filtered.slice(0,notebookLimit).forEach(p=>bodyWrap.appendChild(renderPlacementRow(p, childIds, children)));
+    const lm=listDet.querySelector('#nbLoadMore'); lm.innerHTML="";
+    if(filtered.length>notebookLimit){
+      const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
+      btn.textContent=`Load more (${filtered.length-notebookLimit} remaining)`;
+      btn.addEventListener('click', ()=>{ notebookLimit+=100; drawList(); });
+      lm.appendChild(btn);
     }
   }
   search.addEventListener('input', ()=>{ notebookLimit=100; drawList(); });
   drawList();
 }
 
-function renderPlacementRow(p){
+function renderPlacementRow(p, childIds, children){
   const b = benefitById(p.benefitId);
   const el = document.createElement('div'); el.className='placement-row';
-  el.innerHTML = `<div class="placement-num">#${p.number}</div><div class="placement-body" data-role="body">${escapeHtml(b.text)}</div><div class="placement-actions"></div>`;
+  const organisedIn = children.filter(c=>placements.some(pl=>pl.benefitId===b.id && pl.notebookId===c.id));
+  el.innerHTML = `<div class="placement-num">#${p.number}</div>
+    <div class="placement-body" data-role="body">${escapeHtml(b.text)}${organisedIn.length?`<div>${organisedIn.map(c=>`<span class="organised-chip">↳ ${escapeHtml(c.name)}</span>`).join(' ')}</div>`:''}</div>
+    <div class="placement-actions"></div>`;
   const actions = el.querySelector('.placement-actions');
   actions.appendChild(makeCopyBtn(b.text));
   const editBtn=document.createElement('button'); editBtn.className='icon-btn'; editBtn.textContent='edit';
@@ -883,7 +916,7 @@ function exportNotebookTxt(nbId){
   const nb = nbById(nbId);
   const list = placementsForNotebook(nbId);
   let txt = `${nb.name}\n${'='.repeat(nb.name.length)}\n\n`;
-  list.forEach(p=>{ txt += `${p.number}. ${benefitById(p.benefitId).text}\n\n`; });
+  list.forEach(p=>{ txt += `#${p.number}  ${benefitById(p.benefitId).text}\n\n`; });
   const blob = new Blob(["\uFEFF"+txt],{type:'text/plain;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${slug(nb.name)}.txt`; a.click();
 }
@@ -896,59 +929,26 @@ function openReadView(nbId){
   const lines = list.map(p=>({kind:'para', number:p.number, text:benefitById(p.benefitId).text}));
   document.getElementById('readTitle').textContent = "Read view — "+nb.name;
   const body = document.getElementById('readDocBody');
-  body.innerHTML = lines.length ? lines.map(l=>`<p><span class="rd-num">${l.number}</span>${escapeHtml(l.text)}</p>`).join('') : `<div class="empty">Nothing here yet.</div>`;
+  body.innerHTML = lines.length ? lines.map(l=>`<p><span class="rd-num">#${l.number}</span>${escapeHtml(l.text)}</p>`).join('') : `<div class="empty">Nothing here yet.</div>`;
   setupChunkCopy(lines);
   openModal('modalRead');
 }
 
-/* ===================== Full Book (recursive: headings > subheadings > ...) ===================== */
-function collectBenefitIds(sections){
-  const set = new Set();
-  if(!sections) return set;
-  sections.forEach(s=>{
-    s.directPlacements.forEach(p=>set.add(p.benefitId));
-    collectBenefitIds(s.subsections).forEach(id=>set.add(id));
-  });
-  return set;
-}
-function bookSectionsFor(headingNb, benefitIdFilter){
-  if(!headingNb || !headingNb.headings || !headingNb.headings.length) return null;
-  return headingNb.headings.map(h=>{
-    let plc = placements.filter(p=>p.notebookId===headingNb.id && p.headingId===h.id && benefitById(p.benefitId) && !benefitById(p.benefitId).trashed);
-    if(benefitIdFilter) plc = plc.filter(p=>benefitIdFilter.has(p.benefitId));
-    plc.sort((a,b)=>a.number-b.number);
-    const benIdsHere = new Set(plc.map(p=>p.benefitId));
-    const grandchild = headingNb.categorisedChildId ? nbById(headingNb.categorisedChildId) : null;
-    const subsections = grandchild ? bookSectionsFor(grandchild, benIdsHere) : null;
-    let directPlacements = plc;
-    if(subsections){
-      const covered = collectBenefitIds(subsections);
-      directPlacements = plc.filter(p=>!covered.has(p.benefitId));
-    }
-    return {heading:h, directPlacements, subsections};
-  });
-}
-function buildFullBook(topNb){
-  const directPlacements = placementsForNotebook(topNb.id);
-  const child = topNb.categorisedChildId ? nbById(topNb.categorisedChildId) : null;
-  const sections = child ? bookSectionsFor(child, null) : null;
-  let uncategorized = directPlacements;
-  if(sections){
-    const covered = collectBenefitIds(sections);
-    uncategorized = directPlacements.filter(p=>!covered.has(p.benefitId));
-  }
-  return {sections, uncategorized};
-}
-function flattenBook(sections, uncategorized, depth){
+/* ===================== Full Book: recursive walk of the real notebook tree — each heading appears exactly once ===================== */
+function buildFullBookLines(nb, depth){
   let lines = [];
-  (sections||[]).forEach(s=>{
-    lines.push({kind:'heading', text:s.heading.name, depth});
-    s.directPlacements.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text}));
-    lines = lines.concat(flattenBook(s.subsections, null, depth+1));
+  const children = childrenOf(nb.id);
+  const childBenefitIds = new Set();
+  children.forEach(c => placementsForNotebook(c.id).forEach(p=>childBenefitIds.add(p.benefitId)));
+  const ownLeftovers = placementsForNotebook(nb.id).filter(p=>!childBenefitIds.has(p.benefitId));
+
+  children.forEach(child=>{
+    lines.push({kind:'heading', text:child.name, depth});
+    lines = lines.concat(buildFullBookLines(child, depth+1));
   });
-  if(uncategorized && uncategorized.length){
-    lines.push({kind:'heading', text:'Not yet organised into a heading', depth:0});
-    uncategorized.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text}));
+  if(ownLeftovers.length){
+    if(children.length) lines.push({kind:'heading', text:'Not yet given a heading', depth});
+    ownLeftovers.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text}));
   }
   return lines;
 }
@@ -958,13 +958,12 @@ function renderBookHtml(lines){
       const tag = 'h'+Math.min(l.depth+3,6);
       return `<${tag} style="margin:22px 0 8px;">${escapeHtml(l.text)}</${tag}>`;
     }
-    return `<p><span class="rd-num">${l.number}</span>${escapeHtml(l.text)}</p>`;
+    return `<p><span class="rd-num">#${l.number}</span>${escapeHtml(l.text)}</p>`;
   }).join('');
 }
 function openFullBookView(nbId){
   const nb = nbById(nbId);
-  const { sections, uncategorized } = buildFullBook(nb);
-  const lines = flattenBook(sections, uncategorized, 0);
+  const lines = buildFullBookLines(nb, 0);
   document.getElementById('readTitle').textContent = "Full Book — "+nb.name;
   const body = document.getElementById('readDocBody');
   body.innerHTML = lines.length ? renderBookHtml(lines) : `<div class="empty">Nothing here yet — sort some benefits into headings first.</div>`;
@@ -975,7 +974,7 @@ function openFullBookView(nbId){
 /* ===================== Shared chunked copy controls ===================== */
 function lineToPlainText(line){
   if(line.kind==='heading') return `\n\n${'#'.repeat(Math.min(line.depth+2,5))} ${line.text}\n\n`;
-  return `${line.number}. ${line.text}\n\n`;
+  return `#${line.number}  ${line.text}\n\n`;
 }
 function buildChunks(lines, pagesN){
   const limit = Math.max(1,pagesN) * CHARS_PER_PAGE;
@@ -1001,7 +1000,6 @@ function setupChunkCopy(lines){
       `${lines.filter(l=>l.kind==='para').length} benefit(s) · ~${totalPages} page(s) total · split into ${chunks.length} chunk(s) of ~${pagesPerChunk} page(s) each`;
     const listEl = document.getElementById('chunkList');
     listEl.innerHTML="";
-    if(chunks.length===0){ return; }
     chunks.forEach((chunk,i)=>{
       const paraNums = chunk.filter(l=>l.kind==='para').map(l=>l.number);
       const rangeLabel = paraNums.length ? `covers #${paraNums[0]}–#${paraNums[paraNums.length-1]}` : '(headings only)';
@@ -1058,8 +1056,8 @@ function renderAllBenefitsView(root, actions){
 function renderBenefitRow(b){
   const el=document.createElement('div'); el.className='benefit-row';
   const plc = placementsForBenefit(b.id);
-  const chips = plc.map(p=>{ const nb=nbById(p.notebookId); if(!nb) return ''; const h = p.headingId ? (nb.headings||[]).find(x=>x.id===p.headingId) : null; return `<span class="chip" style="background:${nb.color}">${escapeHtml(nb.name)}${h?(' · '+escapeHtml(h.name)):''} #${p.number}</span>`; }).join('');
-  el.innerHTML = `<div data-role="body">${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div><div class="row-actions"></div>`;
+  const chips = plc.map(p=>{ const nb=nbById(p.notebookId); return nb ? `<span class="chip" style="background:${nb.color}">${escapeHtml(nb.name)} #${p.number}</span>` : ''; }).join('');
+  el.innerHTML = `<div>${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div><div class="row-actions"></div>`;
   const actions = el.querySelector('.row-actions');
   actions.appendChild(makeCopyBtn(b.text));
   const trashBtn=document.createElement('button'); trashBtn.className='icon-btn danger'; trashBtn.textContent='trash';
