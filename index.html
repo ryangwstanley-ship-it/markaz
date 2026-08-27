@@ -228,6 +228,10 @@
       <div class="mini-row"><span class="grow">Export everything (JSON)</span><button class="btn btn-ghost btn-sm" id="exportAllBtn">Export</button></div>
       <div class="mini-row"><span class="grow">Import from JSON backup (merge)</span><button class="btn btn-ghost btn-sm" id="importBtn">Choose file</button></div>
       <input type="file" id="importFile" accept="application/json" style="display:none;">
+      <div class="mini-row" style="border-color:var(--red);">
+        <span class="grow">⚠ Delete everything and start fresh (full reset)</span>
+        <button class="btn btn-danger btn-sm" id="fullResetBtn">Reset</button>
+      </div>
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" data-close>Close</button></div>
   </div>
@@ -334,6 +338,16 @@ let pagesPerChunk = parseInt(localStorage.getItem('ledger_pages_per_chunk')||'10
 const CHARS_PER_PAGE = 3000;
 const PALETTE=["#d4a24c","#5eb1a3","#c86b5a","#6f9bd1","#a689c9","#8bbf5a","#d17aa8","#7a8fa6"];
 function uid(p){ return p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
+/* Reuses a same-named sibling instead of creating a duplicate — this is what was causing headings
+   to appear twice in the Full Book (once empty, once with content) when added via two different buttons. */
+function findOrCreateChildNotebook(parentId, name){
+  const trimmed = name.trim();
+  const existing = notebooks.find(n=>n.parentId===parentId && n.name.trim().toLowerCase()===trimmed.toLowerCase());
+  if(existing) return existing;
+  const nb = {id:uid('nb'), name:trimmed, color:PALETTE[notebooks.length%PALETTE.length], parentId, nextNumber:1, createdAt:Date.now()};
+  notebooks.push(nb); idbPut('notebooks', nb);
+  return nb;
+}
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 /* ===================== Undo stack ===================== */
@@ -642,10 +656,7 @@ function renderTriageView(root, actions){
     else if(filtered.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">✓</div><div>${pending.length===0?"Nothing pending — all caught up.":"No matches."}</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; }
     else {
       const shown = filtered.slice(0,pendingLimit);
-      shown.forEach((b,idx)=>listEl.appendChild(renderTriageRow(b, nbs, 'top', idx===0, (name)=>{
-        const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, nextNumber:1, createdAt:Date.now()};
-        notebooks.push(nb); idbPut('notebooks',nb); return nb;
-      })));
+      shown.forEach((b,idx)=>listEl.appendChild(renderTriageRow(b, nbs, 'top', idx===0, (name)=>findOrCreateChildNotebook(null, name))));
       const lm = document.getElementById('triageLoadMore'); lm.innerHTML="";
       if(filtered.length>pendingLimit){
         const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
@@ -812,8 +823,7 @@ function renderNotebookView(root, actions, nbId){
   addHdBtn.addEventListener('click', ()=>{
     const name = prompt("New heading/subheading name (e.g. Wudu, Ghusl, Siwak):");
     if(name && name.trim()){
-      const h = {id:uid('nb'), name:name.trim(), color:PALETTE[notebooks.length%PALETTE.length], parentId:nb.id, nextNumber:1, createdAt:Date.now()};
-      notebooks.push(h); idbPut('notebooks', h);
+      findOrCreateChildNotebook(nb.id, name);
       renderSidebar(); renderView();
     }
   });
@@ -831,10 +841,7 @@ function renderNotebookView(root, actions, nbId){
       hdDet.querySelector('#headingLoadMore').innerHTML="";
     } else {
       hdPending.slice(0,headingPendingLimit).forEach(b=>{
-        htList.appendChild(renderTriageRow(b, currentChildren, 'hd::'+nb.id, false, (name)=>{
-          const h = {id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:nb.id, nextNumber:1, createdAt:Date.now()};
-          notebooks.push(h); idbPut('notebooks', h); return h;
-        }));
+        htList.appendChild(renderTriageRow(b, currentChildren, 'hd::'+nb.id, false, (name)=>findOrCreateChildNotebook(nb.id, name)));
       });
       const lm = hdDet.querySelector('#headingLoadMore'); lm.innerHTML="";
       if(hdPending.length>headingPendingLimit){
@@ -854,11 +861,22 @@ function renderNotebookView(root, actions, nbId){
   const listDet = document.createElement('details'); listDet.className='collapsible'; listDet.open = true; listDet.style.marginTop='12px';
   listDet.innerHTML = `<summary>All benefits in this notebook<span class="count-badge">${list.length}</span></summary>
     <div class="collapsible-body">
-      <div class="triage-toolbar" style="margin-bottom:10px;"><input type="text" id="nbSearch" placeholder="Search within this notebook..."></div>
+      <div class="triage-toolbar" style="margin-bottom:10px;">
+        <input type="text" id="nbSearch" placeholder="Search within this notebook...">
+        <button class="btn btn-danger btn-sm" id="clearNbBtn">🗑 Clear all from this notebook</button>
+      </div>
+      <div class="hint" style="margin:-4px 0 10px;">Clearing removes benefits from this notebook only — they stay untouched in every other notebook and in All Benefits.</div>
       <div id="nbBody"></div>
       <div class="load-more-row" id="nbLoadMore"></div>
     </div>`;
   root.appendChild(listDet);
+  listDet.querySelector('#clearNbBtn').addEventListener('click', async ()=>{
+    if(list.length===0){ alert("Nothing to clear."); return; }
+    if(!confirm(`Remove all ${list.length} benefits from "${nb.name}"? The benefits themselves are kept — only their placement here is removed.`)) return;
+    for(const p of list){ await idbDelete('placements', p.id); }
+    placements = placements.filter(p=>p.notebookId!==nb.id);
+    renderSidebar(); renderView();
+  });
   const search = listDet.querySelector('#nbSearch');
   const bodyWrap = listDet.querySelector('#nbBody');
   function drawList(){
@@ -942,23 +960,29 @@ function buildFullBookLines(nb, depth){
   children.forEach(c => placementsForNotebook(c.id).forEach(p=>childBenefitIds.add(p.benefitId)));
   const ownLeftovers = placementsForNotebook(nb.id).filter(p=>!childBenefitIds.has(p.benefitId));
 
-  children.forEach(child=>{
+  const nonEmptyChildren = children.filter(c=>placementsForNotebook(c.id).length>0);
+  nonEmptyChildren.forEach(child=>{
     lines.push({kind:'heading', text:child.name, depth});
     lines = lines.concat(buildFullBookLines(child, depth+1));
   });
   if(ownLeftovers.length){
-    if(children.length) lines.push({kind:'heading', text:'Not yet given a heading', depth});
-    ownLeftovers.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text}));
+    if(nonEmptyChildren.length) lines.push({kind:'heading', text:'Not yet given a heading', depth});
+    ownLeftovers.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text, depth}));
   }
   return lines;
 }
 function renderBookHtml(lines){
+  const sizes = [21,18,15.5,13.5,12.5,12];
+  const weights = [800,700,650,600,600,600];
   return lines.map(l=>{
+    const depth = l.depth||0;
+    const indent = depth*20;
     if(l.kind==='heading'){
-      const tag = 'h'+Math.min(l.depth+3,6);
-      return `<${tag} style="margin:22px 0 8px;">${escapeHtml(l.text)}</${tag}>`;
+      const size = sizes[Math.min(depth,sizes.length-1)];
+      const weight = weights[Math.min(depth,weights.length-1)];
+      return `<div style="font-size:${size}px; font-weight:${weight}; margin:${Math.max(22-depth*3,10)}px 0 8px; margin-left:${indent}px; color:var(--ink); letter-spacing:${depth===0?'0.2px':'0'};">${escapeHtml(l.text)}</div>`;
     }
-    return `<p><span class="rd-num">#${l.number}</span>${escapeHtml(l.text)}</p>`;
+    return `<p style="margin-left:${indent}px;"><span class="rd-num">#${l.number}</span>${escapeHtml(l.text)}</p>`;
   }).join('');
 }
 function openFullBookView(nbId){
@@ -973,8 +997,9 @@ function openFullBookView(nbId){
 
 /* ===================== Shared chunked copy controls ===================== */
 function lineToPlainText(line){
-  if(line.kind==='heading') return `\n\n${'#'.repeat(Math.min(line.depth+2,5))} ${line.text}\n\n`;
-  return `#${line.number}  ${line.text}\n\n`;
+  const indent = '  '.repeat(line.depth||0);
+  if(line.kind==='heading') return `\n\n${indent}${'#'.repeat(Math.min((line.depth||0)+2,5))} ${line.text}\n\n`;
+  return `${indent}#${line.number}  ${line.text}\n\n`;
 }
 function buildChunks(lines, pagesN){
   const limit = Math.max(1,pagesN) * CHARS_PER_PAGE;
@@ -1033,6 +1058,17 @@ function renderAllBenefitsView(root, actions){
   document.getElementById('ctxTitle').textContent="All Benefits";
   const active = benefits.filter(b=>!b.trashed);
   document.getElementById('ctxSub').textContent = active.length+" total";
+
+  const delAllBtn=document.createElement('button'); delAllBtn.className='btn btn-danger btn-sm'; delAllBtn.textContent='🗑 Trash ALL benefits';
+  delAllBtn.addEventListener('click', async ()=>{
+    if(active.length===0){ alert("Nothing to delete."); return; }
+    if(!confirm(`Move all ${active.length} benefits to Trash? This clears every notebook too (placements stay only as history until you empty Trash).`)) return;
+    if(!confirm("Really sure? Type OK to confirm again.")) return;
+    for(const b of active){ b.trashed=true; await idbPut('benefits', b); }
+    renderSidebar(); renderView();
+  });
+  actions.appendChild(delAllBtn);
+
   root.innerHTML = `<div class="triage-toolbar"><input type="text" id="allSearch" placeholder="Search all benefits..."></div><div id="allList"></div><div class="load-more-row" id="allLoadMore"></div>`;
   const search = document.getElementById('allSearch');
   function draw(){
@@ -1071,6 +1107,24 @@ function renderTrashView(root, actions){
   document.getElementById('ctxTitle').textContent="Trash";
   const trashed = benefits.filter(b=>b.trashed);
   document.getElementById('ctxSub').textContent = trashed.length+" trashed";
+
+  if(trashed.length>0){
+    const emptyBtn=document.createElement('button'); emptyBtn.className='btn btn-danger btn-sm'; emptyBtn.textContent='⚠ Empty Trash Permanently';
+    emptyBtn.addEventListener('click', async ()=>{
+      if(!confirm(`Permanently delete all ${trashed.length} benefits in Trash? This cannot be undone.`)) return;
+      if(!confirm("This is permanent and cannot be undone. Continue?")) return;
+      for(const b of trashed){
+        const relatedPlacements = placementsForBenefit(b.id);
+        for(const p of relatedPlacements) await idbDelete('placements', p.id);
+        placements = placements.filter(p=>p.benefitId!==b.id);
+        await idbDelete('benefits', b.id);
+      }
+      benefits = benefits.filter(x=>!x.trashed);
+      renderSidebar(); renderView();
+    });
+    actions.appendChild(emptyBtn);
+  }
+
   root.innerHTML = `<div id="trashList"></div>`;
   const listEl = document.getElementById('trashList');
   if(trashed.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">🗑</div><div>Trash is empty.</div></div>`; return; }
@@ -1135,6 +1189,22 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
   };
   reader.readAsText(file);
   e.target.value="";
+});
+document.getElementById('fullResetBtn').addEventListener('click', async ()=>{
+  const typed = prompt(`This permanently deletes every benefit, notebook, and placement — everything, with no recovery. Type DELETE to confirm.`);
+  if(typed !== 'DELETE'){ if(typed!==null) alert("Didn't match — nothing was deleted."); return; }
+  for(const p of placements) await idbDelete('placements', p.id);
+  for(const b of benefits) await idbDelete('benefits', b.id);
+  for(const nb of notebooks) await idbDelete('notebooks', nb.id);
+  placements = []; benefits = []; notebooks = [];
+  for(const name of ["Aqeedah","Fiqh","Usul","Miscellaneous"]){
+    const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, nextNumber:1, createdAt:Date.now()};
+    notebooks.push(nb); await idbPut('notebooks',nb);
+  }
+  skippedIds.clear(); undoStack=[];
+  closeModal('modalData');
+  switchView({type:'import'});
+  alert("Everything has been reset.");
 });
 
 /* ===================== Modal plumbing ===================== */
