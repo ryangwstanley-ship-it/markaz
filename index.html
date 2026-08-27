@@ -25,10 +25,10 @@
   ::-webkit-scrollbar-track{background:var(--bg);}
   ::-webkit-scrollbar-thumb{background:var(--line); border-radius:5px;}
 
-  .shell{display:grid; grid-template-columns:260px 1fr; min-height:100vh;}
+  .shell{display:grid; grid-template-columns:270px 1fr; min-height:100vh;}
   @media (max-width:900px){ .shell{grid-template-columns:1fr;} .sidebar{position:fixed; z-index:40; height:100%; transform:translateX(-100%); transition:transform .2s;} .sidebar.open{transform:translateX(0);} }
 
-  .sidebar{background:var(--bg-raised); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:16px 12px; gap:12px; width:260px; overflow-y:auto;}
+  .sidebar{background:var(--bg-raised); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:16px 12px; gap:10px; width:270px; overflow-y:auto;}
   .brand{display:flex; align-items:center; gap:8px; padding:2px 4px 4px;}
   .brand .mark{font-family:var(--mono); color:var(--amber); font-size:12px; letter-spacing:2px; border:1px solid var(--amber); padding:2px 6px; border-radius:3px;}
   .brand h1{font-size:17px; font-weight:700;}
@@ -83,6 +83,17 @@
   .import-preview{font-family:var(--mono); font-size:12px; color:var(--teal); margin-bottom:10px;}
   .drop-zone{border:1px dashed var(--line); border-radius:6px; padding:10px; text-align:center; font-size:12px; color:var(--ink-faint); margin-bottom:10px;}
 
+  /* Quick add / paste panel */
+  .quickadd{background:var(--bg-raised); border:1px solid var(--line); border-radius:8px; padding:14px;}
+  .quickadd h3{font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:var(--ink-faint); margin-bottom:8px;}
+  .quickadd textarea{width:100%; min-height:60px; background:var(--card); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:8px; font-size:13px;}
+  .quickadd .row{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
+
+  /* Headings section */
+  .headings-box{background:var(--bg-raised); border:1px solid var(--line); border-radius:8px; padding:14px;}
+  .headings-box h3{font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:var(--ink-faint); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
+  .headings-box .sub{font-size:11.5px; color:var(--ink-faint); margin-bottom:10px;}
+
   /* Triage */
   .triage-toolbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between;}
   .triage-toolbar input[type=text]{flex:1; min-width:200px; background:var(--card); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:8px 10px; font-size:13px;}
@@ -96,17 +107,22 @@
   .pill.sel{color:#fff; border-color:transparent;}
   .pill.add{border-style:dashed; color:var(--ink-faint);}
   .pill.add:hover{color:var(--ink);}
-  .row-actions{display:flex; gap:8px; justify-content:flex-end;}
+  .pill.static{cursor:default;}
+  .row-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
   .empty{text-align:center; padding:60px 20px; color:var(--ink-faint);}
   .empty .big{font-size:32px; margin-bottom:10px;}
   .load-more-row{display:flex; justify-content:center; margin-top:10px;}
 
   /* Notebook view */
+  .group{margin-bottom:18px;}
+  .group-head{display:flex; align-items:center; gap:8px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid var(--line);}
+  .group-head .cat-name{font-weight:700; font-size:14px;}
+  .group-head .cat-count{font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); background:var(--bg-raised); padding:2px 7px; border-radius:10px;}
   .placement-row{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; display:flex; gap:12px; align-items:flex-start; margin-bottom:8px;}
   .placement-num{font-family:var(--mono); color:var(--amber); font-size:12px; min-width:34px; padding-top:2px;}
   .placement-body{flex:1; font-size:13.5px; line-height:1.6; white-space:pre-wrap; word-break:break-word;}
   .placement-body textarea{width:100%; min-height:70px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:8px; font-size:13.5px;}
-  .placement-actions{display:flex; gap:4px; flex-shrink:0;}
+  .placement-actions{display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; max-width:150px;}
 
   /* All benefits view */
   .chip{font-size:10px; padding:2px 8px; border-radius:9px; color:#fff; font-family:var(--mono);}
@@ -151,16 +167,12 @@
     <div class="brand"><span class="mark">§</span><h1>Ledger</h1></div>
 
     <div class="nav-item" data-nav="import">📥 Import Text</div>
-    <div class="nav-item" data-nav="triage-category">🏷 Triage: Categories<span class="badge" id="pendingCatBadge">0</span></div>
-    <div class="nav-item" data-nav="triage-title">🔖 Triage: Titles<span class="badge" id="pendingTitleBadge">0</span></div>
+    <div class="nav-item" data-nav="triage">🏷 Triage: New Benefits<span class="badge" id="pendingBadge">0</span></div>
     <div class="nav-item" data-nav="all">📚 All Benefits</div>
     <div class="nav-item" data-nav="trash">🗑 Trash</div>
 
-    <div class="side-label">Category Notebooks<button id="addCatNbBtn">+</button></div>
-    <div id="catNbList"></div>
-
-    <div class="side-label">Title Notebooks<button id="addTitleNbBtn">+</button></div>
-    <div id="titleNbList"></div>
+    <div class="side-label">Notebooks<button id="addNbBtn">+</button></div>
+    <div id="nbList"></div>
 
     <div class="side-bottom">
       <button class="side-btn" id="statsBtn">▦ Dashboard</button>
@@ -181,16 +193,16 @@
       <div class="topbar-right" id="topbarActions"></div>
     </div>
     <div class="wrap" id="viewRoot"></div>
-    <footer>LEDGER · INDEXEDDB · BULK IMPORT + BUTTON TRIAGE · SCALES TO 10,000+ BENEFITS</footer>
+    <footer>LEDGER · INDEXEDDB · BULK IMPORT + RECURSIVE HEADING DRILL-DOWN</footer>
   </div>
 </div>
 
 <!-- Modals -->
 <div class="modal-overlay" id="modalNb">
   <div class="modal">
-    <h3><span id="modalNbTitle">New notebook</span><button data-close>✕</button></h3>
+    <h3>New notebook <button data-close>✕</button></h3>
     <div class="modal-body">
-      <div class="field"><label>Name</label><input type="text" id="nbNameInput" placeholder="e.g. Aqeedah, Ramadan, Tawakkul"></div>
+      <div class="field"><label>Name</label><input type="text" id="nbNameInput" placeholder="e.g. Aqeedah, Tafsir, Seerah"></div>
       <div class="field"><label>Color</label><div class="swatches" id="nbColorSwatches"></div></div>
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="createNbBtn">Create</button></div>
@@ -202,10 +214,8 @@
     <h3>Dashboard <button data-close>✕</button></h3>
     <div class="modal-body">
       <div class="stat-grid" id="statGrid"></div>
-      <div class="side-label" style="padding-left:0;">Category notebooks</div>
-      <div id="statCatNb" style="display:flex; flex-direction:column; gap:6px;"></div>
-      <div class="side-label" style="padding-left:0;">Title notebooks</div>
-      <div id="statTitleNb" style="display:flex; flex-direction:column; gap:6px;"></div>
+      <div class="side-label" style="padding-left:0;">Notebooks</div>
+      <div id="statNb" style="display:flex; flex-direction:column; gap:6px;"></div>
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" data-close>Close</button></div>
   </div>
@@ -236,7 +246,7 @@
 "use strict";
 
 /* ===================== IndexedDB ===================== */
-const DB_NAME="LedgerDB2", DB_VERSION=1;
+const DB_NAME="LedgerDB3", DB_VERSION=1;
 let db;
 function idbOpen(){
   return new Promise((resolve,reject)=>{
@@ -263,11 +273,9 @@ function idbDelete(store,id){ return new Promise((res,rej)=>{ const r=tx(store,'
 /* ===================== State ===================== */
 let benefits=[], notebooks=[], placements=[];
 let view = {type:'import'};
-let rowSelections = new Map(); // benefitId -> Set(notebookId)  [triage in-progress selections]
-let skippedIds = new Set();    // benefitId set, per-kind skip memory (session only)
-let pendingLimit = 40;
-let notebookLimit = 100;
-let allBenefitsLimit = 60;
+let rowSelections = new Map();   // benefitId -> Set(notebookId or headingId)
+let skippedIds = new Set();      // scope-prefixed benefit ids, session only
+let pendingLimit=40, notebookLimit=100, allBenefitsLimit=60, headingPendingLimit=40;
 const PALETTE=["#d4a24c","#5eb1a3","#c86b5a","#6f9bd1","#a689c9","#8bbf5a","#d17aa8","#7a8fa6"];
 function uid(p){ return p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -279,9 +287,9 @@ async function boot(){
   notebooks = await idbGetAll('notebooks');
   placements = await idbGetAll('placements');
 
-  if(notebooks.filter(n=>n.kind==='category').length===0){
+  if(topLevelNotebooks().length===0){
     for(const name of ["Aqeedah","Fiqh","Usul","Miscellaneous"]){
-      const nb={id:uid('nb'), name, kind:'category', color:PALETTE[notebooks.length%PALETTE.length], nextNumber:1, createdAt:Date.now()};
+      const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, categorisedChildId:null, headings:[], nextNumber:1, createdAt:Date.now()};
       notebooks.push(nb); await idbPut('notebooks',nb);
     }
   }
@@ -297,20 +305,42 @@ async function boot(){
 /* ===================== Helpers ===================== */
 function nbById(id){ return notebooks.find(n=>n.id===id); }
 function benefitById(id){ return benefits.find(b=>b.id===id); }
-function notebooksByKind(k){ return notebooks.filter(n=>n.kind===k); }
+function topLevelNotebooks(){ return notebooks.filter(n=>!n.parentId); }
+function childrenOf(nbId){ return notebooks.filter(n=>n.parentId===nbId); }
 function placementsForNotebook(nbId){
   return placements.filter(p=>p.notebookId===nbId && benefitById(p.benefitId) && !benefitById(p.benefitId).trashed)
     .sort((a,b)=>a.number-b.number);
 }
 function placementsForBenefit(benId){ return placements.filter(p=>p.benefitId===benId); }
-function pendingBenefits(kind){
-  const relevantNbIds = new Set(notebooksByKind(kind).map(n=>n.id));
+
+function pendingForTopLevelTriage(){
+  const topIds = new Set(topLevelNotebooks().map(n=>n.id));
   return benefits.filter(b=>{
     if(b.trashed) return false;
-    if(skippedIds.has(kind+'::'+b.id)) return false;
-    const hasPlacementOfKind = placements.some(p=>p.benefitId===b.id && relevantNbIds.has(p.notebookId));
-    return !hasPlacementOfKind;
+    if(skippedIds.has('top::'+b.id)) return false;
+    return !placements.some(p=>p.benefitId===b.id && topIds.has(p.notebookId));
   }).sort((a,b)=>a.order-b.order);
+}
+function pendingForHeadings(parentNb){
+  const childId = parentNb.categorisedChildId;
+  const placedInParent = placements.filter(p=>p.notebookId===parentNb.id);
+  const uniqueBenIds = [...new Set(placedInParent.map(p=>p.benefitId))];
+  return uniqueBenIds.map(benefitById).filter(b=>{
+    if(!b || b.trashed) return false;
+    if(skippedIds.has('hd::'+parentNb.id+'::'+b.id)) return false;
+    if(!childId) return true;
+    return !placements.some(p=>p.benefitId===b.id && p.notebookId===childId);
+  });
+}
+
+function ensureCategorisedChild(parentNb){
+  if(parentNb.categorisedChildId && nbById(parentNb.categorisedChildId)) return nbById(parentNb.categorisedChildId);
+  const child = {id:uid('nb'), name:parentNb.name+' — Categorised', color:parentNb.color, parentId:parentNb.id, categorisedChildId:null, headings:[], nextNumber:1, createdAt:Date.now()};
+  notebooks.push(child);
+  parentNb.categorisedChildId = child.id;
+  idbPut('notebooks', child);
+  idbPut('notebooks', parentNb);
+  return child;
 }
 
 /* ===================== Sidebar ===================== */
@@ -319,61 +349,59 @@ function renderSidebar(){
     const nav = el.dataset.nav;
     el.classList.toggle('active',
       (nav==='import'&&view.type==='import')||
-      (nav==='triage-category'&&view.type==='triage'&&view.kind==='category')||
-      (nav==='triage-title'&&view.type==='triage'&&view.kind==='title')||
+      (nav==='triage'&&view.type==='triage')||
       (nav==='all'&&view.type==='all')||
       (nav==='trash'&&view.type==='trash')
     );
     el.onclick = ()=>{
       if(nav==='import') switchView({type:'import'});
-      else if(nav==='triage-category') switchView({type:'triage', kind:'category'});
-      else if(nav==='triage-title') switchView({type:'triage', kind:'title'});
+      else if(nav==='triage') switchView({type:'triage'});
       else if(nav==='all') switchView({type:'all'});
       else if(nav==='trash') switchView({type:'trash'});
     };
   });
-  document.getElementById('pendingCatBadge').textContent = pendingBenefits('category').length;
-  document.getElementById('pendingTitleBadge').textContent = pendingBenefits('title').length;
+  document.getElementById('pendingBadge').textContent = pendingForTopLevelTriage().length;
 
-  renderNbList('catNbList','category');
-  renderNbList('titleNbList','title');
-}
-function renderNbList(elId, kind){
-  const wrap = document.getElementById(elId);
+  const wrap = document.getElementById('nbList');
   wrap.innerHTML="";
-  notebooksByKind(kind).forEach(nb=>{
-    const count = placementsForNotebook(nb.id).length;
-    const div = document.createElement('div');
-    div.className='nb-item'+(view.type==='notebook'&&view.id===nb.id?' active':'');
-    div.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${escapeHtml(nb.name)}</span><span class="nb-count">${count}</span>`;
-    div.addEventListener('click',()=>switchView({type:'notebook', id:nb.id}));
-    div.addEventListener('dblclick',()=>notebookContextMenu(nb));
-    wrap.appendChild(div);
-  });
-  if(notebooksByKind(kind).length===0){
-    const hint=document.createElement('div');
-    hint.style.cssText='font-size:11.5px; color:var(--ink-faint); padding:4px 8px;';
-    hint.textContent = kind==='title' ? 'No titles yet — add one with the + above.' : 'No categories yet.';
-    wrap.appendChild(hint);
+  function renderLevel(parentId, depth){
+    notebooks.filter(n=>n.parentId===parentId).sort((a,b)=>a.createdAt-b.createdAt).forEach(nb=>{
+      const count = placementsForNotebook(nb.id).length;
+      const div=document.createElement('div');
+      div.className='nb-item'+(view.type==='notebook'&&view.id===nb.id?' active':'');
+      div.style.marginLeft = (depth*14)+'px';
+      div.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${depth>0?'↳ ':''}${escapeHtml(nb.name)}</span><span class="nb-count">${count}</span>`;
+      div.addEventListener('click',()=>switchView({type:'notebook', id:nb.id}));
+      div.addEventListener('dblclick',()=>notebookContextMenu(nb));
+      wrap.appendChild(div);
+      renderLevel(nb.id, depth+1);
+    });
   }
+  renderLevel(null, 0);
 }
 function notebookContextMenu(nb){
-  const action = prompt(`Notebook: "${nb.name}"\n\nType RENAME to rename, DELETE to delete (removes it from all benefits), or cancel.`,"");
+  const action = prompt(`Notebook: "${nb.name}"\n\nType RENAME to rename, DELETE to delete (and any of its Categorised children), or cancel.`,"");
   if(!action) return;
   const a=action.trim().toUpperCase();
   if(a==='RENAME'){
     const n=prompt("New name:", nb.name);
     if(n&&n.trim()){ nb.name=n.trim(); idbPut('notebooks',nb); renderSidebar(); renderView(); }
   } else if(a==='DELETE'){
-    if(confirm(`Delete notebook "${nb.name}"? Benefits stay, but placements in this notebook are removed.`)){
-      deleteNotebook(nb.id);
+    if(confirm(`Delete notebook "${nb.name}" and everything nested under it? Benefits themselves are kept, only placements here are removed.`)){
+      deleteNotebookAndDescendants(nb.id);
     }
   }
 }
-async function deleteNotebook(nbId){
+async function deleteNotebookAndDescendants(nbId){
+  for(const child of childrenOf(nbId)) await deleteNotebookAndDescendants(child.id);
   const toRemove = placements.filter(p=>p.notebookId===nbId);
   for(const p of toRemove) await idbDelete('placements',p.id);
   placements = placements.filter(p=>p.notebookId!==nbId);
+  const nb = nbById(nbId);
+  if(nb && nb.parentId){
+    const parent = nbById(nb.parentId);
+    if(parent && parent.categorisedChildId===nbId){ parent.categorisedChildId=null; await idbPut('notebooks',parent); }
+  }
   await idbDelete('notebooks',nbId);
   notebooks = notebooks.filter(n=>n.id!==nbId);
   if(view.type==='notebook' && view.id===nbId) switchView({type:'all'});
@@ -382,8 +410,6 @@ async function deleteNotebook(nbId){
 
 document.getElementById('menuBtn').addEventListener('click', ()=>document.getElementById('sidebar').classList.toggle('open'));
 
-/* new notebook modal (shared for category/title) */
-let modalNbKind='category';
 const swatchWrap=document.getElementById('nbColorSwatches');
 let pickedColor=PALETTE[0];
 PALETTE.forEach(c=>{
@@ -391,12 +417,11 @@ PALETTE.forEach(c=>{
   s.addEventListener('click',()=>{ pickedColor=c; swatchWrap.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel')); s.classList.add('sel'); });
   swatchWrap.appendChild(s);
 });
-document.getElementById('addCatNbBtn').addEventListener('click',(e)=>{ e.stopPropagation(); modalNbKind='category'; document.getElementById('modalNbTitle').textContent='New category'; openModal('modalNb'); });
-document.getElementById('addTitleNbBtn').addEventListener('click',(e)=>{ e.stopPropagation(); modalNbKind='title'; document.getElementById('modalNbTitle').textContent='New title'; openModal('modalNb'); });
+document.getElementById('addNbBtn').addEventListener('click',(e)=>{ e.stopPropagation(); openModal('modalNb'); });
 document.getElementById('createNbBtn').addEventListener('click', async ()=>{
   const name=document.getElementById('nbNameInput').value.trim();
   if(!name){ alert("Give it a name."); return; }
-  const nb={id:uid('nb'), name, kind:modalNbKind, color:pickedColor, nextNumber:1, createdAt:Date.now()};
+  const nb={id:uid('nb'), name, color:pickedColor, parentId:null, categorisedChildId:null, headings:[], nextNumber:1, createdAt:Date.now()};
   notebooks.push(nb); await idbPut('notebooks',nb);
   document.getElementById('nbNameInput').value="";
   closeModal('modalNb');
@@ -406,31 +431,54 @@ document.getElementById('createNbBtn').addEventListener('click', async ()=>{
 /* ===================== View switching ===================== */
 function switchView(v){
   view=v; rowSelections.clear();
-  pendingLimit=40; notebookLimit=100; allBenefitsLimit=60;
+  pendingLimit=40; notebookLimit=100; allBenefitsLimit=60; headingPendingLimit=40;
   renderSidebar(); renderView();
   if(window.innerWidth<=900) document.getElementById('sidebar').classList.remove('open');
 }
-
 function renderView(){
   const root=document.getElementById('viewRoot');
   const actions=document.getElementById('topbarActions');
   root.innerHTML=""; actions.innerHTML="";
+  document.onkeydown=null;
   if(view.type==='import') renderImportView(root, actions);
-  else if(view.type==='triage') renderTriageView(root, actions, view.kind);
+  else if(view.type==='triage') renderTriageView(root, actions);
   else if(view.type==='notebook') renderNotebookView(root, actions, view.id);
   else if(view.type==='all') renderAllBenefitsView(root, actions);
   else if(view.type==='trash') renderTrashView(root, actions);
 }
 
+/* ===================== Copy helper ===================== */
+function makeCopyBtn(text){
+  const btn = document.createElement('button');
+  btn.className='icon-btn'; btn.textContent='📋 copy';
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const done = ()=>{ const orig=btn.textContent; btn.textContent='✓ copied'; setTimeout(()=>btn.textContent=orig,1100); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(()=>alert("Couldn't copy — clipboard access may be blocked."));
+    } else { alert("Clipboard not available in this browser."); }
+  });
+  return btn;
+}
+
+/* ===================== Line splitting (newline OR 3+ dots / ellipsis) ===================== */
+function splitLines(text, dedupe, skipBlank){
+  let lines = text.split(/\.{3,}|\u2026|\r\n|\r|\n/);
+  if(skipBlank) lines = lines.map(l=>l.trim()).filter(l=>l.length>0);
+  else lines = lines.map(l=>l.trim());
+  if(dedupe){ const seen=new Set(); lines = lines.filter(l=>{ if(seen.has(l)) return false; seen.add(l); return true; }); }
+  return lines;
+}
+
 /* ===================== IMPORT VIEW ===================== */
 function renderImportView(root, actions){
   document.getElementById('ctxTitle').textContent="Import Text";
-  document.getElementById('ctxSub').textContent="Paste your file — every new line becomes one benefit";
+  document.getElementById('ctxSub').textContent="New lines AND runs of \"...\" both start a new benefit";
   root.innerHTML = `
     <div class="import-box">
       <div class="drop-zone" id="dropZone">Drop a .txt file here, or paste directly into the box below</div>
       <input type="file" id="fileInput" accept=".txt,text/plain" style="display:none;">
-      <textarea id="importText" placeholder="Paste your entire file here. Every new line will become a separate benefit."></textarea>
+      <textarea id="importText" placeholder="Paste your entire file here. Every new line, and every run of three or more dots (...), starts a new benefit."></textarea>
       <div class="import-opts">
         <label><input type="checkbox" id="optDedupe"> Skip exact duplicate lines</label>
         <label><input type="checkbox" id="optMinLen" checked> Skip empty / whitespace-only lines</label>
@@ -441,16 +489,8 @@ function renderImportView(root, actions){
   const ta = document.getElementById('importText');
   const preview = document.getElementById('importPreview');
   function updatePreview(){
-    const lines = splitLines(ta.value);
+    const lines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
     preview.textContent = lines.length + " line" + (lines.length===1?"":"s") + " detected";
-  }
-  function splitLines(text){
-    let lines = text.split(/\r\n|\r|\n/);
-    if(document.getElementById('optMinLen').checked) lines = lines.map(l=>l.trim()).filter(l=>l.length>0);
-    if(document.getElementById('optDedupe').checked){
-      const seen=new Set(); lines = lines.filter(l=>{ if(seen.has(l)) return false; seen.add(l); return true; });
-    }
-    return lines;
   }
   ta.addEventListener('input', updatePreview);
   document.getElementById('optDedupe').addEventListener('change', updatePreview);
@@ -473,7 +513,7 @@ function renderImportView(root, actions){
   });
 
   document.getElementById('doImportBtn').addEventListener('click', async ()=>{
-    const lines = splitLines(ta.value);
+    const lines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
     if(!lines.length){ alert("Nothing to import — paste some text first."); return; }
     let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
     for(const line of lines){
@@ -482,59 +522,43 @@ function renderImportView(root, actions){
       await idbPut('benefits', b);
     }
     ta.value=""; updatePreview();
-    alert(`Imported ${lines.length} benefits. Now sort them with Triage: Categories.`);
-    switchView({type:'triage', kind:'category'});
+    alert(`Imported ${lines.length} benefits. Now sort them with Triage: New Benefits.`);
+    switchView({type:'triage'});
   });
 }
 
-/* ===================== TRIAGE VIEW ===================== */
-function renderTriageView(root, actions, kind){
-  const kindLabel = kind==='category' ? 'Categories' : 'Titles';
-  document.getElementById('ctxTitle').textContent = "Triage: "+kindLabel;
-  const pending = pendingBenefits(kind);
+/* ===================== TRIAGE VIEW (top-level sort) ===================== */
+function renderTriageView(root, actions){
+  document.getElementById('ctxTitle').textContent = "Triage: New Benefits";
+  const pending = pendingForTopLevelTriage();
   document.getElementById('ctxSub').textContent = pending.length + " pending";
 
+  const skippedCount = [...skippedIds].filter(k=>k.startsWith('top::')).length;
   const showSkippedBtn = document.createElement('button');
   showSkippedBtn.className='btn btn-ghost btn-sm';
-  const skippedCount = [...skippedIds].filter(k=>k.startsWith(kind+'::')).length;
   showSkippedBtn.textContent = skippedCount>0 ? `Show skipped (${skippedCount})` : 'No skipped';
   showSkippedBtn.disabled = skippedCount===0;
-  showSkippedBtn.addEventListener('click', ()=>{
-    [...skippedIds].filter(k=>k.startsWith(kind+'::')).forEach(k=>skippedIds.delete(k));
-    renderView();
-  });
+  showSkippedBtn.addEventListener('click', ()=>{ [...skippedIds].filter(k=>k.startsWith('top::')).forEach(k=>skippedIds.delete(k)); renderView(); });
   actions.appendChild(showSkippedBtn);
 
-  const nbs = notebooksByKind(kind);
-
-  let html = `<div class="triage-toolbar">
-      <input type="text" id="triageSearch" placeholder="Search pending text...">
-    </div>`;
-  root.innerHTML = html;
-
+  const nbs = topLevelNotebooks();
+  root.innerHTML = `<div class="triage-toolbar"><input type="text" id="triageSearch" placeholder="Search pending text..."></div><div id="triageList"></div><div class="load-more-row" id="triageLoadMore"></div>`;
   const search = document.getElementById('triageSearch');
   let filtered = pending;
-  root.insertAdjacentHTML('beforeend', `<div id="triageList"></div><div class="load-more-row" id="triageLoadMore"></div>`);
 
   function draw(){
     const q = search.value.trim().toLowerCase();
     filtered = q ? pending.filter(b=>b.text.toLowerCase().includes(q)) : pending;
     const listEl = document.getElementById('triageList');
     listEl.innerHTML="";
-    if(nbs.length===0){
-      listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>No ${kind} notebooks yet. Add one from the sidebar first.</div></div>`;
-      document.getElementById('triageLoadMore').innerHTML="";
-      return;
-    }
-    if(filtered.length===0){
-      listEl.innerHTML = `<div class="empty"><div class="big">✓</div><div>${pending.length===0?"Nothing pending — all caught up.":"No matches."}</div></div>`;
-      document.getElementById('triageLoadMore').innerHTML="";
-      return;
-    }
+    if(nbs.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>No notebooks yet. Add one from the sidebar first.</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; return; }
+    if(filtered.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">✓</div><div>${pending.length===0?"Nothing pending — all caught up.":"No matches."}</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; return; }
     const shown = filtered.slice(0,pendingLimit);
-    shown.forEach((b,idx)=>listEl.appendChild(renderTriageRow(b, nbs, kind, idx===0)));
-    const lm = document.getElementById('triageLoadMore');
-    lm.innerHTML="";
+    shown.forEach((b,idx)=>listEl.appendChild(renderTriageRow(b, nbs, 'top', idx===0, (nid,name)=>{
+      const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, categorisedChildId:null, headings:[], nextNumber:1, createdAt:Date.now()};
+      notebooks.push(nb); idbPut('notebooks',nb); return nb;
+    }, (benId, selectedIds, after)=>confirmIntoNotebooks(benId, selectedIds, after))));
+    const lm = document.getElementById('triageLoadMore'); lm.innerHTML="";
     if(filtered.length>pendingLimit){
       const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
       btn.textContent=`Load more (${filtered.length-pendingLimit} remaining)`;
@@ -545,93 +569,94 @@ function renderTriageView(root, actions, kind){
   search.addEventListener('input', ()=>{ pendingLimit=40; draw(); });
   draw();
 
-  // keyboard shortcuts operate on first visible row
   document.onkeydown = (e)=>{
     if(view.type!=='triage') return;
     if(document.activeElement && (document.activeElement.tagName==='TEXTAREA'||document.activeElement===search)) return;
     const firstRow = filtered[0];
     if(!firstRow) return;
-    const nbsK = notebooksByKind(kind);
     const digit = parseInt(e.key,10);
-    if(digit>=1 && digit<=9 && nbsK[digit-1]){
-      togglePillSelection(firstRow.id, nbsK[digit-1].id);
-      draw();
-    } else if(e.key==='Enter'){
+    if(digit>=1 && digit<=9 && nbs[digit-1]){ togglePillSelection(firstRow.id, nbs[digit-1].id); draw(); }
+    else if(e.key==='Enter'){
       e.preventDefault();
-      confirmRow(firstRow.id, kind, ()=>{ pendingLimit=40; draw(); renderSidebar(); });
-    } else if(e.key.toLowerCase()==='s'){
-      skipRow(firstRow.id, kind); draw(); renderSidebar();
+      const set = rowSelections.get(firstRow.id);
+      if(set && set.size>0){ confirmIntoNotebooks(firstRow.id, set, ()=>{ rowSelections.delete(firstRow.id); pendingLimit=40; draw(); renderSidebar(); }); }
     }
+    else if(e.key.toLowerCase()==='s'){ skippedIds.add('top::'+firstRow.id); draw(); renderSidebar(); }
   };
 }
 
-function togglePillSelection(benId, nbId){
+function togglePillSelection(benId, id){
   if(!rowSelections.has(benId)) rowSelections.set(benId, new Set());
   const set = rowSelections.get(benId);
-  if(set.has(nbId)) set.delete(nbId); else set.add(nbId);
-}
-function skipRow(benId, kind){ skippedIds.add(kind+'::'+benId); }
-
-async function confirmRow(benId, kind, after){
-  const set = rowSelections.get(benId);
-  if(!set || set.size===0){ alert("Select at least one button first, or use Skip."); return; }
-  for(const nbId of set){
-    const nb = nbById(nbId);
-    const placement = {id:uid('pl'), benefitId:benId, notebookId:nbId, number: nb.nextNumber||1, addedAt:Date.now()};
-    placements.push(placement);
-    await idbPut('placements', placement);
-    nb.nextNumber = (nb.nextNumber||1)+1;
-    await idbPut('notebooks', nb);
-  }
-  rowSelections.delete(benId);
-  if(after) after();
+  if(set.has(id)) set.delete(id); else set.add(id);
 }
 
-function renderTriageRow(b, nbs, kind, isFocused){
+/* generic triage row renderer; onAddNew(name) creates+returns a new target pushed into the pill list live;
+   onConfirm(benId, selectedIdSet, after) performs the actual placement write for this context */
+function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew, onConfirm){
   const el = document.createElement('div');
   el.className='triage-row'+(isFocused?' focused':'');
   const sel = rowSelections.get(b.id) || new Set();
   el.innerHTML = `
     <div class="triage-text" data-role="display">${escapeHtml(b.text)}</div>
     <div class="pill-row" data-role="pills">
-      ${nbs.map((nb,i)=>`<button class="pill ${sel.has(nb.id)?'sel':''}" data-nb="${nb.id}" style="${sel.has(nb.id)?`background:${nb.color};border-color:${nb.color};`:''}"><span class="num">${i<9?(i+1):''}</span>${escapeHtml(nb.name)}</button>`).join('')}
+      ${targets.map((t,i)=>`<button class="pill ${sel.has(t.id)?'sel':''}" data-t="${t.id}" style="${sel.has(t.id)?`background:${t.color};border-color:${t.color};`:''}"><span class="num">${i<9?(i+1):''}</span>${escapeHtml(t.name)}</button>`).join('')}
       <button class="pill add" data-role="addnb">+ new</button>
     </div>
-    <div class="row-actions">
-      <button class="btn btn-ghost btn-sm" data-role="edit">Edit text</button>
-      <button class="btn btn-ghost btn-sm" data-role="skip">Skip</button>
-      <button class="btn btn-primary btn-sm" data-role="confirm">Confirm</button>
-    </div>`;
-
-  el.querySelectorAll('[data-nb]').forEach(pillEl=>{
-    pillEl.addEventListener('click', ()=>{
-      togglePillSelection(b.id, pillEl.dataset.nb);
-      renderView();
-    });
+    <div class="row-actions"></div>`;
+  el.querySelectorAll('[data-t]').forEach(pillEl=>{
+    pillEl.addEventListener('click', ()=>{ togglePillSelection(b.id, pillEl.dataset.t); renderView(); });
   });
   el.querySelector('[data-role="addnb"]').addEventListener('click', ()=>{
-    const name = prompt(kind==='category' ? "New category name:" : "New title name:");
+    const name = prompt("New name:");
     if(name && name.trim()){
-      const nb = {id:uid('nb'), name:name.trim(), kind, color:PALETTE[notebooks.length%PALETTE.length], nextNumber:1, createdAt:Date.now()};
-      notebooks.push(nb); idbPut('notebooks',nb);
-      togglePillSelection(b.id, nb.id);
+      const t = onAddNew(uid('x'), name.trim());
+      togglePillSelection(b.id, t.id);
       renderSidebar(); renderView();
     }
   });
-  el.querySelector('[data-role="skip"]').addEventListener('click', ()=>{ skipRow(b.id, kind); renderSidebar(); renderView(); });
-  el.querySelector('[data-role="confirm"]').addEventListener('click', ()=>{
-    confirmRow(b.id, kind, ()=>{ renderSidebar(); renderView(); });
-  });
-  el.querySelector('[data-role="edit"]').addEventListener('click', ()=>{
+  const actions = el.querySelector('.row-actions');
+  actions.appendChild(makeCopyBtn(b.text));
+  const editBtn=document.createElement('button'); editBtn.className='btn btn-ghost btn-sm'; editBtn.textContent='Edit text';
+  editBtn.addEventListener('click', ()=>{
     const disp = el.querySelector('[data-role="display"]');
     disp.innerHTML = `<textarea>${escapeHtml(b.text)}</textarea><div style="margin-top:6px;"><button class="btn btn-primary btn-sm" data-role="savetext">Save</button></div>`;
-    disp.querySelector('[data-role="savetext"]').addEventListener('click', async ()=>{
-      b.text = disp.querySelector('textarea').value;
-      await idbPut('benefits', b);
-      renderView();
-    });
+    disp.querySelector('[data-role="savetext"]').addEventListener('click', async ()=>{ b.text = disp.querySelector('textarea').value; await idbPut('benefits', b); renderView(); });
   });
+  const skipBtn=document.createElement('button'); skipBtn.className='btn btn-ghost btn-sm'; skipBtn.textContent='Skip';
+  skipBtn.addEventListener('click', ()=>{ skippedIds.add(scopeKey+'::'+b.id); renderSidebar(); renderView(); });
+  const confirmBtn=document.createElement('button'); confirmBtn.className='btn btn-primary btn-sm'; confirmBtn.textContent='Confirm';
+  confirmBtn.addEventListener('click', ()=>{
+    const set = rowSelections.get(b.id);
+    if(!set || set.size===0){ alert("Select at least one button first, or use Skip."); return; }
+    onConfirm(b.id, set, ()=>{ rowSelections.delete(b.id); renderSidebar(); renderView(); });
+  });
+  actions.appendChild(editBtn); actions.appendChild(skipBtn); actions.appendChild(confirmBtn);
   return el;
+}
+
+/* confirm callback for placing a benefit into one or more top-level (or general) notebooks */
+async function confirmIntoNotebooks(benId, selectedIds, after){
+  for(const nbId of selectedIds){
+    const nb = nbById(nbId);
+    if(!nb) continue;
+    const placement = {id:uid('pl'), benefitId:benId, notebookId:nbId, headingId:null, number: nb.nextNumber||1, addedAt:Date.now()};
+    placements.push(placement); await idbPut('placements', placement);
+    nb.nextNumber = (nb.nextNumber||1)+1; await idbPut('notebooks', nb);
+  }
+  if(after) after();
+}
+
+/* confirm callback for placing a benefit under one or more headings inside a parent's Categorised child */
+async function confirmIntoHeadings(benId, parentNb, selectedHeadingIds, after){
+  const child = ensureCategorisedChild(parentNb);
+  for(const headingId of selectedHeadingIds){
+    const placement = {id:uid('pl'), benefitId:benId, notebookId:child.id, headingId, number: child.nextNumber||1, addedAt:Date.now()};
+    placements.push(placement); await idbPut('placements', placement);
+    child.nextNumber = (child.nextNumber||1)+1;
+  }
+  await idbPut('notebooks', child);
+  if(after) after();
 }
 
 /* ===================== NOTEBOOK VIEW ===================== */
@@ -640,7 +665,7 @@ function renderNotebookView(root, actions, nbId){
   if(!nb){ switchView({type:'all'}); return; }
   const list = placementsForNotebook(nbId);
   document.getElementById('ctxTitle').textContent = nb.name;
-  document.getElementById('ctxSub').textContent = list.length + " benefit"+(list.length===1?"":"s")+" · "+ (nb.kind==='category'?'Category notebook':'Title notebook');
+  document.getElementById('ctxSub').textContent = list.length + " benefit"+(list.length===1?"":"s");
 
   const readBtn=document.createElement('button'); readBtn.className='btn btn-ghost btn-sm'; readBtn.textContent='📖 Read view';
   readBtn.addEventListener('click', ()=>openReadView(nbId));
@@ -648,63 +673,165 @@ function renderNotebookView(root, actions, nbId){
   exportBtn.addEventListener('click', ()=>exportNotebookTxt(nbId));
   actions.appendChild(readBtn); actions.appendChild(exportBtn);
 
-  root.innerHTML = `<div class="triage-toolbar"><input type="text" id="nbSearch" placeholder="Search within this notebook..."></div><div id="nbList"></div><div class="load-more-row" id="nbLoadMore"></div>`;
-  const search = document.getElementById('nbSearch');
+  root.innerHTML="";
 
-  function draw(){
-    const q = search.value.trim().toLowerCase();
-    const filtered = q ? list.filter(p=>benefitById(p.benefitId).text.toLowerCase().includes(q)) : list;
-    const listEl = document.getElementById('nbList');
-    listEl.innerHTML="";
-    if(filtered.length===0){
-      listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>${list.length===0?"No benefits placed here yet — use Triage to send some over.":"No matches."}</div></div>`;
-      document.getElementById('nbLoadMore').innerHTML=""; return;
+  /* --- Quick add / paste --- */
+  const qa = document.createElement('div'); qa.className='quickadd';
+  qa.innerHTML = `<h3>Quick add / paste a benefit here</h3>
+    <textarea id="qaText" placeholder="Paste or type a single benefit to drop directly into this notebook..."></textarea>
+    <div class="row">
+      <button class="btn btn-ghost btn-sm" id="qaPaste">📋 Paste from clipboard</button>
+      <button class="btn btn-primary btn-sm" id="qaAdd">Add to this notebook</button>
+    </div>`;
+  root.appendChild(qa);
+  document.getElementById('qaPaste').addEventListener('click', async ()=>{
+    try{
+      const text = await navigator.clipboard.readText();
+      document.getElementById('qaText').value = text;
+    }catch(err){ alert("Couldn't read clipboard automatically — paste manually with Ctrl/Cmd+V into the box."); }
+  });
+  document.getElementById('qaAdd').addEventListener('click', async ()=>{
+    const txt = document.getElementById('qaText').value.trim();
+    if(!txt){ alert("Nothing to add."); return; }
+    let order = benefits.length ? Math.max(...benefits.map(x=>x.order))+1 : 0;
+    const b = {id:uid('ben'), text:txt, trashed:false, createdAt:Date.now(), order};
+    benefits.push(b); await idbPut('benefits', b);
+    const placement = {id:uid('pl'), benefitId:b.id, notebookId:nb.id, headingId:null, number: nb.nextNumber||1, addedAt:Date.now()};
+    placements.push(placement); await idbPut('placements', placement);
+    nb.nextNumber = (nb.nextNumber||1)+1; await idbPut('notebooks', nb);
+    document.getElementById('qaText').value="";
+    renderSidebar(); renderView();
+  });
+
+  /* --- Headings drill-down section --- */
+  const child = nb.categorisedChildId ? nbById(nb.categorisedChildId) : null;
+  const headings = child ? child.headings : [];
+  const hdPending = pendingForHeadings(nb);
+
+  const hb = document.createElement('div'); hb.className='headings-box';
+  hb.innerHTML = `<h3><span>Sort into headings / subcategories</span>${child?`<button class="btn btn-ghost btn-sm" id="openChildBtn">Open "${escapeHtml(child.name)}" →</button>`:''}</h3>
+    <div class="sub">Give this notebook its own subheadings (e.g. wudu, ghusl, siwak). Sorted benefits move into a new "${escapeHtml(nb.name)} — Categorised" notebook, grouped by heading — the originals stay right here so you can keep adding more.</div>
+    <div class="pill-row" id="headingPillBar" style="margin-bottom:10px;"></div>
+    <div id="headingTriageList"></div>
+    <div class="load-more-row" id="headingLoadMore"></div>`;
+  root.appendChild(hb);
+  if(child){ document.getElementById('openChildBtn').addEventListener('click', ()=>switchView({type:'notebook', id:child.id})); }
+
+  const pillBar = document.getElementById('headingPillBar');
+  headings.forEach(h=>{
+    const p=document.createElement('span'); p.className='pill static'; p.style.background=h.color; p.style.color='#fff'; p.style.borderColor=h.color;
+    p.textContent = h.name + ' (' + (child?placements.filter(pl=>pl.notebookId===child.id&&pl.headingId===h.id).length:0) + ')';
+    pillBar.appendChild(p);
+  });
+  const addHdBtn=document.createElement('button'); addHdBtn.className='pill add'; addHdBtn.textContent='+ add heading';
+  addHdBtn.addEventListener('click', ()=>{
+    const name = prompt("New heading/subcategory name (e.g. Wudu, Ghusl, Siwak):");
+    if(name && name.trim()){
+      const c = ensureCategorisedChild(nb);
+      const h = {id:uid('hd'), name:name.trim(), color:PALETTE[c.headings.length%PALETTE.length]};
+      c.headings.push(h); idbPut('notebooks', c);
+      renderSidebar(); renderView();
     }
-    filtered.slice(0,notebookLimit).forEach(p=>listEl.appendChild(renderPlacementRow(p)));
-    const lm=document.getElementById('nbLoadMore'); lm.innerHTML="";
-    if(filtered.length>notebookLimit){
+  });
+  pillBar.appendChild(addHdBtn);
+
+  const htList = document.getElementById('headingTriageList');
+  function drawHeadings(){
+    htList.innerHTML="";
+    if(headings.length===0){
+      htList.innerHTML = `<div class="empty"><div class="big">▢</div><div>Add a heading above to start splitting this notebook further.</div></div>`;
+      document.getElementById('headingLoadMore').innerHTML=""; return;
+    }
+    if(hdPending.length===0){
+      htList.innerHTML = `<div class="empty"><div class="big">✓</div><div>Nothing pending for headings right now.</div></div>`;
+      document.getElementById('headingLoadMore').innerHTML=""; return;
+    }
+    const currentChild = ensureCategorisedChild(nb);
+    hdPending.slice(0,headingPendingLimit).forEach((b,idx)=>{
+      htList.appendChild(renderTriageRow(b, currentChild.headings, 'hd::'+nb.id, false, (id,name)=>{
+        const h={id:uid('hd'), name, color:PALETTE[currentChild.headings.length%PALETTE.length]};
+        currentChild.headings.push(h); idbPut('notebooks', currentChild); return h;
+      }, (benId, selectedIds, after)=>confirmIntoHeadings(benId, nb, selectedIds, after)));
+    });
+    document.getElementById('headingLoadMore').innerHTML="";
+    if(hdPending.length>headingPendingLimit){
       const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
-      btn.textContent=`Load more (${filtered.length-notebookLimit} remaining)`;
-      btn.addEventListener('click', ()=>{ notebookLimit+=100; draw(); });
-      lm.appendChild(btn);
+      btn.textContent=`Load more (${hdPending.length-headingPendingLimit} remaining)`;
+      btn.addEventListener('click', ()=>{ headingPendingLimit+=40; drawHeadings(); });
+      document.getElementById('headingLoadMore').appendChild(btn);
     }
   }
-  search.addEventListener('input', ()=>{ notebookLimit=100; draw(); });
-  draw();
+  drawHeadings();
+
+  /* --- Main placements list, grouped by heading if applicable --- */
+  const listWrap = document.createElement('div');
+  root.appendChild(listWrap);
+  const toolbar = document.createElement('div'); toolbar.className='triage-toolbar';
+  toolbar.innerHTML = `<input type="text" id="nbSearch" placeholder="Search within this notebook...">`;
+  listWrap.appendChild(toolbar);
+  const bodyWrap = document.createElement('div'); bodyWrap.id='nbBody'; listWrap.appendChild(bodyWrap);
+  const lmWrap = document.createElement('div'); lmWrap.className='load-more-row'; lmWrap.id='nbLoadMore'; listWrap.appendChild(lmWrap);
+
+  const search = document.getElementById('nbSearch');
+  function drawList(){
+    const q = search.value.trim().toLowerCase();
+    const filtered = q ? list.filter(p=>benefitById(p.benefitId).text.toLowerCase().includes(q)) : list;
+    bodyWrap.innerHTML="";
+    if(filtered.length===0){
+      bodyWrap.innerHTML = `<div class="empty"><div class="big">▢</div><div>${list.length===0?"No benefits placed here yet.":"No matches."}</div></div>`;
+      document.getElementById('nbLoadMore').innerHTML=""; return;
+    }
+    const hasHeadingGroups = filtered.some(p=>p.headingId);
+    if(hasHeadingGroups && headings.length){
+      const groups = {};
+      filtered.forEach(p=>{ const k=p.headingId||'__none__'; (groups[k]=groups[k]||[]).push(p); });
+      Object.keys(groups).forEach(hid=>{
+        const h = headings.find(x=>x.id===hid);
+        const g=document.createElement('div'); g.className='group';
+        g.innerHTML = `<div class="group-head"><span class="nb-dot" style="background:${h?h.color:'#888'}"></span><span class="cat-name">${escapeHtml(h?h.name:'Ungrouped')}</span><span class="cat-count">${groups[hid].length}</span></div>`;
+        groups[hid].slice(0,notebookLimit).forEach(p=>g.appendChild(renderPlacementRow(p)));
+        bodyWrap.appendChild(g);
+      });
+      document.getElementById('nbLoadMore').innerHTML="";
+    } else {
+      filtered.slice(0,notebookLimit).forEach(p=>bodyWrap.appendChild(renderPlacementRow(p)));
+      const lm=document.getElementById('nbLoadMore'); lm.innerHTML="";
+      if(filtered.length>notebookLimit){
+        const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
+        btn.textContent=`Load more (${filtered.length-notebookLimit} remaining)`;
+        btn.addEventListener('click', ()=>{ notebookLimit+=100; drawList(); });
+        lm.appendChild(btn);
+      }
+    }
+  }
+  search.addEventListener('input', ()=>{ notebookLimit=100; drawList(); });
+  drawList();
 }
 
 function renderPlacementRow(p){
   const b = benefitById(p.benefitId);
   const el = document.createElement('div'); el.className='placement-row';
-  el.innerHTML = `
-    <div class="placement-num">#${p.number}</div>
-    <div class="placement-body" data-role="body">${escapeHtml(b.text)}</div>
-    <div class="placement-actions">
-      <button class="icon-btn" data-role="edit">edit</button>
-      <button class="icon-btn" data-role="remove">remove here</button>
-      <button class="icon-btn danger" data-role="trash">trash</button>
-    </div>`;
-  el.querySelector('[data-role="edit"]').addEventListener('click', ()=>{
+  el.innerHTML = `<div class="placement-num">#${p.number}</div><div class="placement-body" data-role="body">${escapeHtml(b.text)}</div><div class="placement-actions"></div>`;
+  const actions = el.querySelector('.placement-actions');
+  actions.appendChild(makeCopyBtn(b.text));
+  const editBtn=document.createElement('button'); editBtn.className='icon-btn'; editBtn.textContent='edit';
+  editBtn.addEventListener('click', ()=>{
     const body = el.querySelector('[data-role="body"]');
     body.innerHTML = `<textarea>${escapeHtml(b.text)}</textarea><div style="margin-top:6px;"><button class="btn btn-primary btn-sm" data-role="save">Save</button></div>`;
-    body.querySelector('[data-role="save"]').addEventListener('click', async ()=>{
-      b.text = body.querySelector('textarea').value;
-      await idbPut('benefits', b);
-      renderView();
-    });
+    body.querySelector('[data-role="save"]').addEventListener('click', async ()=>{ b.text = body.querySelector('textarea').value; await idbPut('benefits', b); renderView(); });
   });
-  el.querySelector('[data-role="remove"]').addEventListener('click', async ()=>{
+  const removeBtn=document.createElement('button'); removeBtn.className='icon-btn'; removeBtn.textContent='remove here';
+  removeBtn.addEventListener('click', async ()=>{
     if(!confirm("Remove this benefit from this notebook only? It stays everywhere else.")) return;
-    await idbDelete('placements', p.id);
-    placements = placements.filter(x=>x.id!==p.id);
+    await idbDelete('placements', p.id); placements = placements.filter(x=>x.id!==p.id);
     renderSidebar(); renderView();
   });
-  el.querySelector('[data-role="trash"]').addEventListener('click', async ()=>{
-    if(!confirm("Trash this benefit entirely? It will disappear from every notebook (recoverable from Trash).")) return;
-    b.trashed = true;
-    await idbPut('benefits', b);
-    renderSidebar(); renderView();
+  const trashBtn=document.createElement('button'); trashBtn.className='icon-btn danger'; trashBtn.textContent='trash';
+  trashBtn.addEventListener('click', async ()=>{
+    if(!confirm("Trash this benefit entirely? It disappears from every notebook (recoverable from Trash).")) return;
+    b.trashed=true; await idbPut('benefits', b); renderSidebar(); renderView();
   });
+  actions.appendChild(editBtn); actions.appendChild(removeBtn); actions.appendChild(trashBtn);
   return el;
 }
 
@@ -756,13 +883,13 @@ function renderAllBenefitsView(root, actions){
 function renderBenefitRow(b){
   const el=document.createElement('div'); el.className='benefit-row';
   const plc = placementsForBenefit(b.id);
-  const chips = plc.map(p=>{ const nb=nbById(p.notebookId); return nb ? `<span class="chip" style="background:${nb.color}">${escapeHtml(nb.name)} #${p.number}</span>` : ''; }).join('');
-  el.innerHTML = `<div>${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div>
-    <div class="row-actions"><button class="icon-btn danger" data-role="trash">trash</button></div>`;
-  el.querySelector('[data-role="trash"]').addEventListener('click', async ()=>{
-    if(!confirm("Trash this benefit?")) return;
-    b.trashed=true; await idbPut('benefits',b); renderSidebar(); renderView();
-  });
+  const chips = plc.map(p=>{ const nb=nbById(p.notebookId); if(!nb) return ''; const h = p.headingId ? (nb.headings||[]).find(x=>x.id===p.headingId) : null; return `<span class="chip" style="background:${nb.color}">${escapeHtml(nb.name)}${h?(' · '+escapeHtml(h.name)):''} #${p.number}</span>`; }).join('');
+  el.innerHTML = `<div data-role="body">${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div><div class="row-actions"></div>`;
+  const actions = el.querySelector('.row-actions');
+  actions.appendChild(makeCopyBtn(b.text));
+  const trashBtn=document.createElement('button'); trashBtn.className='icon-btn danger'; trashBtn.textContent='trash';
+  trashBtn.addEventListener('click', async ()=>{ if(!confirm("Trash this benefit?")) return; b.trashed=true; await idbPut('benefits',b); renderSidebar(); renderView(); });
+  actions.appendChild(trashBtn);
   return el;
 }
 
@@ -797,19 +924,18 @@ document.getElementById('statsBtn').addEventListener('click', ()=>{
   const grid = document.getElementById('statGrid');
   grid.innerHTML = [
     ['Total benefits', active.length],
-    ['Category notebooks', notebooksByKind('category').length],
-    ['Title notebooks', notebooksByKind('title').length],
-    ['Pending: categories', pendingBenefits('category').length],
-    ['Pending: titles', pendingBenefits('title').length],
+    ['Notebooks', notebooks.length],
+    ['Pending triage', pendingForTopLevelTriage().length],
     ['In trash', benefits.filter(b=>b.trashed).length],
   ].map(([lbl,num])=>`<div class="stat-box"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join('');
-
-  document.getElementById('statCatNb').innerHTML = notebooksByKind('category').map(nb=>
-    `<div class="mini-row"><span class="nb-dot" style="background:${nb.color}"></span><span class="grow">${escapeHtml(nb.name)}</span><span style="font-family:var(--mono); font-size:12px;">${placementsForNotebook(nb.id).length}</span></div>`
-  ).join('') || '<div class="hint">None yet.</div>';
-  document.getElementById('statTitleNb').innerHTML = notebooksByKind('title').map(nb=>
-    `<div class="mini-row"><span class="nb-dot" style="background:${nb.color}"></span><span class="grow">${escapeHtml(nb.name)}</span><span style="font-family:var(--mono); font-size:12px;">${placementsForNotebook(nb.id).length}</span></div>`
-  ).join('') || '<div class="hint">None yet.</div>';
+  const statNb = document.getElementById('statNb');
+  function renderStatLevel(parentId, depth){
+    return notebooks.filter(n=>n.parentId===parentId).map(nb=>{
+      const row = `<div class="mini-row" style="margin-left:${depth*14}px;"><span class="nb-dot" style="background:${nb.color}"></span><span class="grow">${escapeHtml(nb.name)}</span><span style="font-family:var(--mono); font-size:12px;">${placementsForNotebook(nb.id).length}</span></div>`;
+      return row + renderStatLevel(nb.id, depth+1).join('');
+    });
+  }
+  statNb.innerHTML = renderStatLevel(null,0).join('') || '<div class="hint">None yet.</div>';
   openModal('modalStats');
 });
 
