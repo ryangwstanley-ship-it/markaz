@@ -558,9 +558,10 @@ function makeCopyBtn(text){
   return btn;
 }
 
-/* ===================== Line splitting ===================== */
+/* ===================== Benefit splitting: ONLY on runs of "..." (or the single ellipsis character) —
+   newlines, tabs, and paragraph breaks are kept as part of the benefit's own text ===================== */
 function splitLines(text, dedupe, skipBlank){
-  let lines = text.split(/\.{3,}|\u2026|\r\n|\r|\n/);
+  let lines = text.split(/\.{3,}|\u2026/);
   lines = skipBlank ? lines.map(l=>l.trim()).filter(l=>l.length>0) : lines.map(l=>l.trim());
   if(dedupe){ const seen=new Set(); lines = lines.filter(l=>{ if(seen.has(l)) return false; seen.add(l); return true; }); }
   return lines;
@@ -569,24 +570,24 @@ function splitLines(text, dedupe, skipBlank){
 /* ===================== IMPORT VIEW ===================== */
 function renderImportView(root, actions){
   document.getElementById('ctxTitle').textContent="Import Text";
-  document.getElementById('ctxSub').textContent="New lines AND runs of \"...\" both start a new benefit";
+  document.getElementById('ctxSub').textContent="Only \"...\" starts a new benefit — line breaks stay inside the benefit";
   root.innerHTML = `
     <div class="import-box">
       <div class="drop-zone" id="dropZone">Drop a .txt file here, or paste directly into the box below</div>
       <input type="file" id="fileInput" accept=".txt,text/plain" style="display:none;">
-      <textarea id="importText" placeholder="Paste your entire file here. Every new line, and every run of three or more dots (...), starts a new benefit."></textarea>
+      <textarea id="importText" placeholder="Paste your entire file here. A benefit ends only where you write three or more dots (...) — line breaks, tabs, and paragraph gaps stay inside the same benefit."></textarea>
       <div class="import-opts">
-        <label><input type="checkbox" id="optDedupe"> Skip exact duplicate lines</label>
-        <label><input type="checkbox" id="optMinLen" checked> Skip empty / whitespace-only lines</label>
+        <label><input type="checkbox" id="optDedupe"> Skip exact duplicate benefits</label>
+        <label><input type="checkbox" id="optMinLen" checked> Skip empty / whitespace-only benefits</label>
       </div>
-      <div class="import-preview" id="importPreview">0 lines detected</div>
+      <div class="import-preview" id="importPreview">0 benefits detected</div>
       <button class="btn btn-primary" id="doImportBtn">Import as Benefits</button>
     </div>`;
   const ta = document.getElementById('importText');
   const preview = document.getElementById('importPreview');
   function updatePreview(){
     const lines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
-    preview.textContent = lines.length + " line" + (lines.length===1?"":"s") + " detected";
+    preview.textContent = lines.length + " benefit" + (lines.length===1?"":"s") + " detected";
   }
   ta.addEventListener('input', updatePreview);
   document.getElementById('optDedupe').addEventListener('change', updatePreview);
