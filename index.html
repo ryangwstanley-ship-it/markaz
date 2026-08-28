@@ -42,6 +42,8 @@
   .nb-item{display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:6px; cursor:pointer; font-size:13px; color:var(--ink-dim);}
   .nb-item:hover{background:var(--card);}
   .nb-item.active{background:var(--card); color:var(--ink); font-weight:600;}
+  .nb-item [data-role="delnb"]{opacity:0; flex-shrink:0;}
+  .nb-item:hover [data-role="delnb"]{opacity:1;}
   .nb-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
   .nb-name{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .nb-count{font-family:var(--mono); font-size:10px; color:var(--ink-faint);}
@@ -253,6 +255,19 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalAddHeadings">
+  <div class="modal">
+    <h3>Add this benefit to more headings <button data-close>✕</button></h3>
+    <div class="modal-body">
+      <div class="hint" id="ahBenefitPreview" style="margin-bottom:4px;"></div>
+      <input type="text" id="ahSearch" placeholder="Search notebooks...">
+      <div class="hint">Tap any notebook to duplicate this benefit into it — including notebooks in a completely different book. Already-placed ones are greyed out.</div>
+      <div id="ahTree" style="max-height:50vh; overflow:auto; display:flex; flex-direction:column; gap:3px; margin-top:6px;"></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" data-close>Done</button></div>
+  </div>
+</div>
+
 <script>
 (function(){
 "use strict";
@@ -460,31 +475,25 @@ function renderSidebar(){
       const div=document.createElement('div');
       div.className='nb-item'+(view.type==='notebook'&&view.id===nb.id?' active':'');
       div.style.marginLeft = (depth*14)+'px';
-      div.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${depth>0?'↳ ':''}${escapeHtml(nb.name)}</span><span class="nb-count">${count}</span>`;
+      div.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${depth>0?'↳ ':''}${escapeHtml(nb.name)}</span><span class="nb-count">${count}</span><button class="icon-btn danger" data-role="delnb" title="Delete this notebook">✕</button>`;
       div.addEventListener('click',()=>switchView({type:'notebook', id:nb.id}));
-      div.addEventListener('dblclick',()=>notebookContextMenu(nb));
+      div.addEventListener('dblclick',async ()=>{
+        const n = prompt("Rename notebook:", nb.name);
+        if(n && n.trim()){ nb.name=n.trim(); await idbPut('notebooks',nb); renderSidebar(); renderView(); }
+      });
+      div.querySelector('[data-role="delnb"]').addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        if(!confirm(`Delete "${nb.name}" and everything nested under it? Benefits themselves are kept — only placements here are removed.`)) return;
+        await deleteNotebookAndDescendants(nb.id);
+        if(view.type==='notebook' && view.id===nb.id) switchView({type:'all'});
+        else { renderSidebar(); renderView(); }
+      });
       wrap.appendChild(div);
       renderLevel(nb.id, depth+1);
     });
   }
   renderLevel(null, 0);
   updateUndoBtn();
-}
-function notebookContextMenu(nb){
-  const action = prompt(`Notebook: "${nb.name}"\n\nType RENAME to rename, DELETE to delete (and everything nested under it), or cancel.`,"");
-  if(!action) return;
-  const a=action.trim().toUpperCase();
-  if(a==='RENAME'){
-    const n=prompt("New name:", nb.name);
-    if(n&&n.trim()){ nb.name=n.trim(); idbPut('notebooks',nb); renderSidebar(); renderView(); }
-  } else if(a==='DELETE'){
-    if(confirm(`Delete notebook "${nb.name}" and everything nested under it? Benefits themselves are kept, only placements here are removed.`)){
-      deleteNotebookAndDescendants(nb.id).then(()=>{
-        if(view.type==='notebook' && view.id===nb.id) switchView({type:'all'});
-        else { renderSidebar(); renderView(); }
-      });
-    }
-  }
 }
 async function deleteNotebookAndDescendants(nbId){
   for(const child of childrenOf(nbId)) await deleteNotebookAndDescendants(child.id);
@@ -813,10 +822,18 @@ function renderNotebookView(root, actions, nbId){
 
   const pillBar = hdDet.querySelector('#headingPillBar');
   children.forEach(c=>{
-    const p=document.createElement('span'); p.className='pill'; p.style.cursor='default';
-    p.innerHTML = `<span class="nb-dot" style="background:${c.color}"></span>${escapeHtml(c.name)} <span class="num">(${placementsForNotebook(c.id).length})</span>`;
-    p.addEventListener('click', ()=>switchView({type:'notebook', id:c.id}));
-    p.style.cursor='pointer';
+    const p=document.createElement('span'); p.className='pill'; p.style.cursor='pointer';
+    p.innerHTML = `<span class="nb-dot" style="background:${c.color}"></span>${escapeHtml(c.name)} <span class="num">(${placementsForNotebook(c.id).length})</span> <span data-role="delpill" style="color:var(--red); margin-left:2px;" title="Delete this heading">✕</span>`;
+    p.addEventListener('click', async (e)=>{
+      if(e.target.dataset.role==='delpill'){
+        e.stopPropagation();
+        if(!confirm(`Delete heading "${c.name}" and everything nested under it? Benefits are kept — only placements here are removed.`)) return;
+        await deleteNotebookAndDescendants(c.id);
+        renderSidebar(); renderView();
+        return;
+      }
+      switchView({type:'notebook', id:c.id});
+    });
     pillBar.appendChild(p);
   });
   const addHdBtn=document.createElement('button'); addHdBtn.className='pill add'; addHdBtn.textContent='+ add heading';
@@ -932,28 +949,39 @@ function renderPlacementRow(p, childIds, children){
 
 function exportNotebookTxt(nbId){
   const nb = nbById(nbId);
-  const list = placementsForNotebook(nbId);
+  const lines = buildFullBookLines(nb, 0, []);
   let txt = `${nb.name}\n${'='.repeat(nb.name.length)}\n\n`;
-  list.forEach(p=>{ txt += `#${p.number}  ${benefitById(p.benefitId).text}\n\n`; });
+  txt += lines.length ? lines.map(lineToPlainText).join('') : '(nothing here yet)\n';
   const blob = new Blob(["\uFEFF"+txt],{type:'text/plain;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${slug(nb.name)}.txt`; a.click();
 }
 function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
 
+/* shared paragraph markup — includes a button to duplicate this benefit into any other heading, anywhere */
+function paraHtml(l){
+  const indent = (l.depth||0)*20;
+  return `<p style="margin-left:${indent}px;"><span class="rd-num">#${l.number}</span>${escapeHtml(l.text)} <button class="icon-btn" data-action="addhead" data-benefit="${l.benefitId}">+ add heading</button></p>`;
+}
+
+/* tracks which book/read view is currently open so it can be refreshed live after adding a heading */
+let lastBookNbId = null, lastBookType = null;
+
 /* ===================== Read view (flat, this notebook only) ===================== */
 function openReadView(nbId){
+  lastBookNbId = nbId; lastBookType = 'read';
   const nb = nbById(nbId);
   const list = placementsForNotebook(nbId);
-  const lines = list.map(p=>({kind:'para', number:p.number, text:benefitById(p.benefitId).text}));
+  const lines = list.map(p=>({kind:'para', number:p.number, text:benefitById(p.benefitId).text, benefitId:p.benefitId, depth:0}));
   document.getElementById('readTitle').textContent = "Read view — "+nb.name;
   const body = document.getElementById('readDocBody');
-  body.innerHTML = lines.length ? lines.map(l=>`<p><span class="rd-num">#${l.number}</span>${escapeHtml(l.text)}</p>`).join('') : `<div class="empty">Nothing here yet.</div>`;
+  body.innerHTML = lines.length ? lines.map(paraHtml).join('') : `<div class="empty">Nothing here yet.</div>`;
   setupChunkCopy(lines);
   openModal('modalRead');
 }
 
-/* ===================== Full Book: recursive walk of the real notebook tree — each heading appears exactly once ===================== */
-function buildFullBookLines(nb, depth){
+/* ===================== Full Book: recursive walk of the real notebook tree — each heading appears exactly once,
+   numbered like an outline (1. / 1.1. / 1.1.4.) based on position among its non-empty siblings ===================== */
+function buildFullBookLines(nb, depth, numberPath){
   let lines = [];
   const children = childrenOf(nb.id);
   const childBenefitIds = new Set();
@@ -961,13 +989,14 @@ function buildFullBookLines(nb, depth){
   const ownLeftovers = placementsForNotebook(nb.id).filter(p=>!childBenefitIds.has(p.benefitId));
 
   const nonEmptyChildren = children.filter(c=>placementsForNotebook(c.id).length>0);
-  nonEmptyChildren.forEach(child=>{
-    lines.push({kind:'heading', text:child.name, depth});
-    lines = lines.concat(buildFullBookLines(child, depth+1));
+  nonEmptyChildren.forEach((child,i)=>{
+    const path = [...numberPath, i+1];
+    lines.push({kind:'heading', text:child.name, depth, numberLabel: path.join('.')+'.'});
+    lines = lines.concat(buildFullBookLines(child, depth+1, path));
   });
   if(ownLeftovers.length){
-    if(nonEmptyChildren.length) lines.push({kind:'heading', text:'Not yet given a heading', depth});
-    ownLeftovers.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text, depth}));
+    if(nonEmptyChildren.length) lines.push({kind:'heading', text:'Not yet given a heading', depth, numberLabel:null});
+    ownLeftovers.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text, depth, benefitId:p.benefitId}));
   }
   return lines;
 }
@@ -980,25 +1009,35 @@ function renderBookHtml(lines){
     if(l.kind==='heading'){
       const size = sizes[Math.min(depth,sizes.length-1)];
       const weight = weights[Math.min(depth,weights.length-1)];
-      return `<div style="font-size:${size}px; font-weight:${weight}; margin:${Math.max(22-depth*3,10)}px 0 8px; margin-left:${indent}px; color:var(--ink); letter-spacing:${depth===0?'0.2px':'0'};">${escapeHtml(l.text)}</div>`;
+      const label = l.numberLabel ? l.numberLabel+' ' : '';
+      return `<div style="font-size:${size}px; font-weight:${weight}; margin:${Math.max(22-depth*3,10)}px 0 8px; margin-left:${indent}px; color:var(--ink); letter-spacing:${depth===0?'0.2px':'0'};">${escapeHtml(label+l.text)}</div>`;
     }
-    return `<p style="margin-left:${indent}px;"><span class="rd-num">#${l.number}</span>${escapeHtml(l.text)}</p>`;
+    return paraHtml(l);
   }).join('');
 }
 function openFullBookView(nbId){
+  lastBookNbId = nbId; lastBookType = 'book';
   const nb = nbById(nbId);
-  const lines = buildFullBookLines(nb, 0);
+  const lines = buildFullBookLines(nb, 0, []);
   document.getElementById('readTitle').textContent = "Full Book — "+nb.name;
   const body = document.getElementById('readDocBody');
   body.innerHTML = lines.length ? renderBookHtml(lines) : `<div class="empty">Nothing here yet — sort some benefits into headings first.</div>`;
   setupChunkCopy(lines);
   openModal('modalRead');
 }
+function refreshOpenBookIfNeeded(){
+  if(!lastBookNbId || !nbById(lastBookNbId)) return;
+  if(lastBookType==='book') openFullBookView(lastBookNbId);
+  else if(lastBookType==='read') openReadView(lastBookNbId);
+}
 
 /* ===================== Shared chunked copy controls ===================== */
 function lineToPlainText(line){
   const indent = '  '.repeat(line.depth||0);
-  if(line.kind==='heading') return `\n\n${indent}${'#'.repeat(Math.min((line.depth||0)+2,5))} ${line.text}\n\n`;
+  if(line.kind==='heading'){
+    const label = line.numberLabel ? line.numberLabel+' ' : '';
+    return `\n\n${indent}${label}${line.text}\n\n`;
+  }
   return `${indent}#${line.number}  ${line.text}\n\n`;
 }
 function buildChunks(lines, pagesN){
@@ -1205,6 +1244,60 @@ document.getElementById('fullResetBtn').addEventListener('click', async ()=>{
   closeModal('modalData');
   switchView({type:'import'});
   alert("Everything has been reset.");
+});
+
+/* ===================== Add benefit to more headings (from any book, cross-tree) ===================== */
+let ahBenefitId = null;
+function openAddHeadingsModal(benefitId){
+  ahBenefitId = benefitId;
+  const b = benefitById(benefitId);
+  document.getElementById('ahBenefitPreview').textContent = b ? (b.text.length>140 ? b.text.slice(0,140)+'…' : b.text) : '';
+  document.getElementById('ahSearch').value = '';
+  renderAhTree('');
+  openModal('modalAddHeadings');
+}
+document.getElementById('ahSearch').addEventListener('input',(e)=>renderAhTree(e.target.value));
+function renderAhTree(query){
+  const wrap = document.getElementById('ahTree');
+  wrap.innerHTML='';
+  const already = new Set(placements.filter(p=>p.benefitId===ahBenefitId).map(p=>p.notebookId));
+  const q = query.trim().toLowerCase();
+  if(q){
+    const matches = notebooks.filter(n=>n.name.toLowerCase().includes(q));
+    if(matches.length===0){ wrap.innerHTML='<div class="hint">No matches.</div>'; return; }
+    matches.forEach(nb=>wrap.appendChild(renderAhRow(nb, 0, already)));
+    return;
+  }
+  function renderLevel(parentId, depth){
+    notebooks.filter(n=>n.parentId===parentId).sort((a,b)=>a.createdAt-b.createdAt).forEach(nb=>{
+      wrap.appendChild(renderAhRow(nb, depth, already));
+      renderLevel(nb.id, depth+1);
+    });
+  }
+  renderLevel(null, 0);
+}
+function renderAhRow(nb, depth, alreadySet){
+  const row = document.createElement('div');
+  row.className = 'nb-item';
+  row.style.marginLeft = (depth*14)+'px';
+  const isAlready = alreadySet.has(nb.id);
+  row.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${escapeHtml(nb.name)}</span>${isAlready?'<span class="nb-count">✓ already here</span>':''}`;
+  if(isAlready){
+    row.style.opacity='0.5'; row.style.cursor='default';
+  } else {
+    row.addEventListener('click', async ()=>{
+      const created = await confirmIntoNotebooks(ahBenefitId, [nb.id]);
+      pushUndo(`added a benefit → ${nb.name}`, ()=>undoPlacements(created));
+      renderSidebar();
+      renderAhTree(document.getElementById('ahSearch').value);
+      refreshOpenBookIfNeeded();
+    });
+  }
+  return row;
+}
+document.addEventListener('click',(e)=>{
+  const btn = e.target.closest('[data-action="addhead"]');
+  if(btn) openAddHeadingsModal(btn.dataset.benefit);
 });
 
 /* ===================== Modal plumbing ===================== */
