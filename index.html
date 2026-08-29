@@ -120,7 +120,8 @@
   .placement-num{font-family:var(--mono); color:var(--amber); font-size:12px; min-width:34px; padding-top:2px;}
   .placement-body{flex:1; font-size:13.5px; line-height:1.6; white-space:pre-wrap; word-break:break-word;}
   .placement-body textarea{width:100%; min-height:70px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:8px; font-size:13.5px;}
-  .placement-actions{display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; max-width:150px;}
+  .placement-actions{display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; max-width:210px;}
+  .read-doc mark{background:var(--amber); color:#1a1408; padding:0 2px; border-radius:2px;}
   .organised-chip{display:inline-block; font-size:10px; font-family:var(--mono); background:var(--bg-raised); color:var(--teal); padding:2px 7px; border-radius:8px; margin-top:5px;}
 
   .skip-row{display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--line); font-size:13px;}
@@ -169,6 +170,7 @@
 
     <div class="nav-item" data-nav="import">📥 Import Text</div>
     <div class="nav-item" data-nav="triage">🏷 Triage: New Benefits<span class="badge" id="pendingBadge">0</span></div>
+    <div class="nav-item" data-nav="masterbook">📘 Master Book</div>
     <div class="nav-item" data-nav="all">📚 All Benefits</div>
     <div class="nav-item" data-nav="trash">🗑 Trash</div>
 
@@ -415,8 +417,67 @@ async function boot(){
 /* ===================== Helpers ===================== */
 function nbById(id){ return notebooks.find(n=>n.id===id); }
 function benefitById(id){ return benefits.find(b=>b.id===id); }
-function topLevelNotebooks(){ return notebooks.filter(n=>!n.parentId); }
-function childrenOf(nbId){ return notebooks.filter(n=>n.parentId===nbId); }
+function topLevelNotebooks(){ return notebooks.filter(n=>!n.parentId).sort((a,b)=>(a.order??a.createdAt)-(b.order??b.createdAt)); }
+function childrenOf(nbId){ return notebooks.filter(n=>n.parentId===nbId).sort((a,b)=>(a.order??a.createdAt)-(b.order??b.createdAt)); }
+
+/* ===================== Reordering ===================== */
+async function moveNotebookSibling(nb, direction){
+  const siblings = nb.parentId ? childrenOf(nb.parentId) : topLevelNotebooks();
+  siblings.forEach((s,i)=>{ s.order=i; });
+  const idx = siblings.findIndex(s=>s.id===nb.id);
+  const swapIdx = idx+direction;
+  if(swapIdx<0||swapIdx>=siblings.length) return false;
+  const tmp = siblings[idx].order; siblings[idx].order=siblings[swapIdx].order; siblings[swapIdx].order=tmp;
+  for(const s of siblings) await idbPut('notebooks', s);
+  return true;
+}
+async function movePlacementSibling(nbId, placementId, direction){
+  const list = placementsForNotebook(nbId);
+  list.forEach((p,i)=>{ p.number=i+1; });
+  const idx = list.findIndex(p=>p.id===placementId);
+  const swapIdx = idx+direction;
+  if(swapIdx<0||swapIdx>=list.length) return false;
+  const tmp = list[idx].number; list[idx].number=list[swapIdx].number; list[swapIdx].number=tmp;
+  for(const p of list) await idbPut('placements', p);
+  return true;
+}
+
+/* ===================== Highlighting ===================== */
+const HIGHLIGHT_COLORS = [null, '#f2d675', '#9fd8a8', '#e9a3c4', '#8fc3e8'];
+function nextHighlight(current){
+  const idx = HIGHLIGHT_COLORS.indexOf(current||null);
+  return HIGHLIGHT_COLORS[(idx+1)%HIGHLIGHT_COLORS.length];
+}
+
+/* ===================== Deep duplicate (independent benefits, safe to experiment on) ===================== */
+async function duplicateNotebookDeep(nb, targetParentId){
+  const idMap = new Map();
+  async function cloneBenefit(oldId){
+    if(idMap.has(oldId)) return idMap.get(oldId);
+    const old = benefitById(oldId);
+    const clone = {id:uid('ben'), text: old.text, trashed:false, createdAt:Date.now(), order: benefits.length, highlight: old.highlight||null};
+    benefits.push(clone); await idbPut('benefits', clone);
+    idMap.set(oldId, clone.id);
+    return clone.id;
+  }
+  async function cloneNode(oldNb, newParentId, isRoot){
+    const newNb = {id:uid('nb'), name: isRoot ? oldNb.name+' (copy)' : oldNb.name, color:oldNb.color, parentId:newParentId, nextNumber:1, order:oldNb.order, createdAt:Date.now()};
+    notebooks.push(newNb); await idbPut('notebooks', newNb);
+    const ownPlacements = placements.filter(p=>p.notebookId===oldNb.id);
+    let maxNum = 0;
+    for(const p of ownPlacements){
+      const newBenId = await cloneBenefit(p.benefitId);
+      const newP = {id:uid('pl'), benefitId:newBenId, notebookId:newNb.id, number:p.number, addedAt:Date.now()};
+      placements.push(newP); await idbPut('placements', newP);
+      if(p.number>maxNum) maxNum=p.number;
+    }
+    newNb.nextNumber = maxNum+1;
+    await idbPut('notebooks', newNb);
+    for(const child of childrenOf(oldNb.id)) await cloneNode(child, newNb.id, false);
+    return newNb;
+  }
+  return cloneNode(nb, targetParentId, true);
+}
 function placementsForNotebook(nbId){
   return placements.filter(p=>p.notebookId===nbId && benefitById(p.benefitId) && !benefitById(p.benefitId).trashed)
     .sort((a,b)=>a.number-b.number);
@@ -455,12 +516,14 @@ function renderSidebar(){
     el.classList.toggle('active',
       (nav==='import'&&view.type==='import')||
       (nav==='triage'&&view.type==='triage')||
+      (nav==='masterbook'&&view.type==='masterbook')||
       (nav==='all'&&view.type==='all')||
       (nav==='trash'&&view.type==='trash')
     );
     el.onclick = ()=>{
       if(nav==='import') switchView({type:'import'});
       else if(nav==='triage') switchView({type:'triage'});
+      else if(nav==='masterbook') switchView({type:'masterbook'});
       else if(nav==='all') switchView({type:'all'});
       else if(nav==='trash') switchView({type:'trash'});
     };
@@ -539,6 +602,7 @@ function renderView(){
   document.onkeydown_triage=null;
   if(view.type==='import') renderImportView(root, actions);
   else if(view.type==='triage') renderTriageView(root, actions);
+  else if(view.type==='masterbook') renderMasterBookView(root, actions);
   else if(view.type==='notebook') renderNotebookView(root, actions, view.id);
   else if(view.type==='all') renderAllBenefitsView(root, actions);
   else if(view.type==='trash') renderTrashView(root, actions);
@@ -777,7 +841,9 @@ function renderNotebookView(root, actions, nbId){
   bookBtn.addEventListener('click', ()=>openFullBookView(nbId));
   const exportBtn=document.createElement('button'); exportBtn.className='btn btn-ghost btn-sm'; exportBtn.textContent='Export .txt';
   exportBtn.addEventListener('click', ()=>exportNotebookTxt(nbId));
-  actions.appendChild(readBtn); actions.appendChild(bookBtn); actions.appendChild(exportBtn);
+  const dupBtn=document.createElement('button'); dupBtn.className='btn btn-ghost btn-sm'; dupBtn.textContent='📋 Duplicate';
+  dupBtn.dataset.action='dup-notebook'; dupBtn.dataset.notebook=nb.id;
+  actions.appendChild(readBtn); actions.appendChild(bookBtn); actions.appendChild(exportBtn); actions.appendChild(dupBtn);
 
   root.innerHTML="";
 
@@ -824,12 +890,18 @@ function renderNotebookView(root, actions, nbId){
   const pillBar = hdDet.querySelector('#headingPillBar');
   children.forEach(c=>{
     const p=document.createElement('span'); p.className='pill'; p.style.cursor='pointer';
-    p.innerHTML = `<span class="nb-dot" style="background:${c.color}"></span>${escapeHtml(c.name)} <span class="num">(${placementsForNotebook(c.id).length})</span> <span data-role="delpill" style="color:var(--red); margin-left:2px;" title="Delete this heading">✕</span>`;
+    p.innerHTML = `<span data-role="up" title="Move up" style="color:var(--ink-faint); margin-right:2px;">▲</span><span data-role="down" title="Move down" style="color:var(--ink-faint); margin-right:4px;">▼</span><span class="nb-dot" style="background:${c.color}"></span>${escapeHtml(c.name)} <span class="num">(${placementsForNotebook(c.id).length})</span> <span data-role="delpill" style="color:var(--red); margin-left:2px;" title="Delete this heading">✕</span>`;
     p.addEventListener('click', async (e)=>{
       if(e.target.dataset.role==='delpill'){
         e.stopPropagation();
         if(!confirm(`Delete heading "${c.name}" and everything nested under it? Benefits are kept — only placements here are removed.`)) return;
         await deleteNotebookAndDescendants(c.id);
+        renderSidebar(); renderView();
+        return;
+      }
+      if(e.target.dataset.role==='up'||e.target.dataset.role==='down'){
+        e.stopPropagation();
+        await moveNotebookSibling(c, e.target.dataset.role==='up'?-1:1);
         renderSidebar(); renderView();
         return;
       }
@@ -922,11 +994,20 @@ function renderPlacementRow(p, childIds, children){
   const b = benefitById(p.benefitId);
   const el = document.createElement('div'); el.className='placement-row';
   const organisedIn = children.filter(c=>placements.some(pl=>pl.benefitId===b.id && pl.notebookId===c.id));
+  const hlStyle = b.highlight ? `background:${b.highlight}; border-radius:6px;` : '';
+  el.style.cssText += hlStyle;
   el.innerHTML = `<div class="placement-num">#${p.number}</div>
     <div class="placement-body" data-role="body">${escapeHtml(b.text)}${organisedIn.length?`<div>${organisedIn.map(c=>`<span class="organised-chip">↳ ${escapeHtml(c.name)}</span>`).join(' ')}</div>`:''}</div>
     <div class="placement-actions"></div>`;
   const actions = el.querySelector('.placement-actions');
   actions.appendChild(makeCopyBtn(b.text));
+  const upBtn=document.createElement('button'); upBtn.className='icon-btn'; upBtn.textContent='▲';
+  upBtn.addEventListener('click', async ()=>{ await movePlacementSibling(p.notebookId, p.id, -1); renderView(); });
+  const downBtn=document.createElement('button'); downBtn.className='icon-btn'; downBtn.textContent='▼';
+  downBtn.addEventListener('click', async ()=>{ await movePlacementSibling(p.notebookId, p.id, 1); renderView(); });
+  const hlBtn=document.createElement('button'); hlBtn.className='icon-btn'; hlBtn.textContent='🖍';
+  hlBtn.title='Cycle highlight color';
+  hlBtn.addEventListener('click', async ()=>{ b.highlight = nextHighlight(b.highlight); await idbPut('benefits', b); renderView(); });
   const editBtn=document.createElement('button'); editBtn.className='icon-btn'; editBtn.textContent='edit';
   editBtn.addEventListener('click', ()=>{
     const body = el.querySelector('[data-role="body"]');
@@ -944,7 +1025,7 @@ function renderPlacementRow(p, childIds, children){
     if(!confirm("Trash this benefit entirely? It disappears from every notebook (recoverable from Trash).")) return;
     b.trashed=true; await idbPut('benefits', b); renderSidebar(); renderView();
   });
-  actions.appendChild(editBtn); actions.appendChild(removeBtn); actions.appendChild(trashBtn);
+  actions.appendChild(upBtn); actions.appendChild(downBtn); actions.appendChild(hlBtn); actions.appendChild(editBtn); actions.appendChild(removeBtn); actions.appendChild(trashBtn);
   return el;
 }
 
@@ -958,10 +1039,25 @@ function exportNotebookTxt(nbId){
 }
 function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
 
-/* shared paragraph markup — includes a button to duplicate this benefit into any other heading, anywhere */
-function paraHtml(l){
+/* shared paragraph markup — includes highlight color, edit, reorder (edit-mode only), and add-to-more-headings */
+function paraHtml(l, editMode){
   const indent = (l.depth||0)*20;
-  return `<p style="margin-left:${indent}px;"><span class="rd-num">#${l.number}</span>${escapeHtml(l.text)} <button class="icon-btn" data-action="addhead" data-benefit="${l.benefitId}">+ add heading</button></p>`;
+  const b = benefitById(l.benefitId);
+  const hl = b && b.highlight ? `background:${b.highlight}; border-radius:4px; padding:2px 6px; margin:0 -6px;` : '';
+  const displayText = l.searchQuery ? highlightQuery(l.text, l.searchQuery) : escapeHtml(l.text);
+  const editControls = editMode ? `
+    <button class="icon-btn" data-action="hl-benefit" data-benefit="${l.benefitId}" title="Cycle highlight color">🖍</button>
+    <button class="icon-btn" data-action="edit-benefit" data-benefit="${l.benefitId}">edit</button>
+    ${l.placementId?`<button class="icon-btn" data-action="move-p-up" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▲</button>
+    <button class="icon-btn" data-action="move-p-down" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▼</button>`:''}
+  `:'';
+  return `<p class="mb-para" data-benefit-line="${l.benefitId}" style="margin-left:${indent}px; ${hl}"><span class="rd-num">#${l.number}</span><span data-role="ptext">${displayText}</span> <button class="icon-btn" data-action="addhead" data-benefit="${l.benefitId}">+ add heading</button>${editControls}</p>`;
+}
+function highlightQuery(text, q){
+  if(!q) return escapeHtml(text);
+  const esc = escapeHtml(text);
+  const escQ = escapeHtml(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return esc.replace(new RegExp(escQ,'ig'), m=>`<mark>${m}</mark>`);
 }
 
 /* tracks which book/read view is currently open so it can be refreshed live after adding a heading */
@@ -972,10 +1068,10 @@ function openReadView(nbId){
   lastBookNbId = nbId; lastBookType = 'read';
   const nb = nbById(nbId);
   const list = placementsForNotebook(nbId);
-  const lines = list.map(p=>({kind:'para', number:p.number, text:benefitById(p.benefitId).text, benefitId:p.benefitId, depth:0}));
+  const lines = list.map(p=>({kind:'para', number:p.number, text:benefitById(p.benefitId).text, benefitId:p.benefitId, placementId:p.id, notebookId:nbId, depth:0}));
   document.getElementById('readTitle').textContent = "Read view — "+nb.name;
   const body = document.getElementById('readDocBody');
-  body.innerHTML = lines.length ? lines.map(paraHtml).join('') : `<div class="empty">Nothing here yet.</div>`;
+  body.innerHTML = lines.length ? lines.map(l=>paraHtml(l,false)).join('') : `<div class="empty">Nothing here yet.</div>`;
   setupChunkCopy(lines);
   openModal('modalRead');
 }
@@ -992,28 +1088,37 @@ function buildFullBookLines(nb, depth, numberPath){
   const nonEmptyChildren = children.filter(c=>placementsForNotebook(c.id).length>0);
   nonEmptyChildren.forEach((child,i)=>{
     const path = [...numberPath, i+1];
-    lines.push({kind:'heading', text:child.name, depth, numberLabel: path.join('.')+'.'});
+    lines.push({kind:'heading', text:child.name, depth, numberLabel: path.join('.')+'.', nbId:child.id, parentNbId:nb.id});
     lines = lines.concat(buildFullBookLines(child, depth+1, path));
   });
   if(ownLeftovers.length){
-    if(nonEmptyChildren.length) lines.push({kind:'heading', text:'Not yet given a heading', depth, numberLabel:null});
-    ownLeftovers.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text, depth, benefitId:p.benefitId}));
+    if(nonEmptyChildren.length) lines.push({kind:'heading', text:'Not yet given a heading', depth, numberLabel:null, nbId:null});
+    ownLeftovers.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text, depth, benefitId:p.benefitId, placementId:p.id, notebookId:nb.id}));
   }
   return lines;
 }
-function renderBookHtml(lines){
-  const sizes = [21,18,15.5,13.5,12.5,12];
-  const weights = [800,700,650,600,600,600];
+function renderBookHtml(lines, editMode){
+  const sizes = [26,21,18,15.5,13.5,12.5,12];
+  const weights = [900,800,700,650,600,600,600];
   return lines.map(l=>{
-    const depth = l.depth||0;
-    const indent = depth*20;
-    if(l.kind==='heading'){
-      const size = sizes[Math.min(depth,sizes.length-1)];
-      const weight = weights[Math.min(depth,weights.length-1)];
-      const label = l.numberLabel ? l.numberLabel+' ' : '';
-      return `<div style="font-size:${size}px; font-weight:${weight}; margin:${Math.max(22-depth*3,10)}px 0 8px; margin-left:${indent}px; color:var(--ink); letter-spacing:${depth===0?'0.2px':'0'};">${escapeHtml(label+l.text)}</div>`;
+    const depth = l.kind==='part' ? -1 : (l.depth||0);
+    const sizeIdx = depth+1;
+    const indent = Math.max(depth,0)*20;
+    if(l.kind==='part'){
+      const dupBtn = editMode ? `<button class="icon-btn" data-action="dup-notebook" data-notebook="${l.nbId}" title="Duplicate this book">📋 duplicate</button>` : '';
+      return `<div style="font-size:${sizes[0]}px; font-weight:${weights[0]}; margin:34px 0 10px; padding-bottom:8px; border-bottom:2px solid var(--line); color:var(--ink); display:flex; justify-content:space-between; align-items:baseline;"><span>${escapeHtml(l.text)}</span>${dupBtn}</div>`;
     }
-    return paraHtml(l);
+    if(l.kind==='heading'){
+      const size = sizes[Math.min(sizeIdx,sizes.length-1)];
+      const weight = weights[Math.min(sizeIdx,weights.length-1)];
+      const label = l.numberLabel ? l.numberLabel+' ' : '';
+      const moveControls = (editMode && l.nbId) ? `
+        <button class="icon-btn" data-action="move-h-up" data-notebook="${l.nbId}">▲</button>
+        <button class="icon-btn" data-action="move-h-down" data-notebook="${l.nbId}">▼</button>
+        <button class="icon-btn danger" data-action="del-heading" data-notebook="${l.nbId}">✕</button>` : '';
+      return `<div style="font-size:${size}px; font-weight:${weight}; margin:${Math.max(22-depth*3,10)}px 0 8px; margin-left:${indent}px; color:var(--ink); display:flex; align-items:baseline; gap:6px;"><span>${escapeHtml(label+l.text)}</span>${moveControls}</div>`;
+    }
+    return paraHtml(l, editMode);
   }).join('');
 }
 function openFullBookView(nbId){
@@ -1022,7 +1127,7 @@ function openFullBookView(nbId){
   const lines = buildFullBookLines(nb, 0, []);
   document.getElementById('readTitle').textContent = "Full Book — "+nb.name;
   const body = document.getElementById('readDocBody');
-  body.innerHTML = lines.length ? renderBookHtml(lines) : `<div class="empty">Nothing here yet — sort some benefits into headings first.</div>`;
+  body.innerHTML = lines.length ? renderBookHtml(lines,false) : `<div class="empty">Nothing here yet — sort some benefits into headings first.</div>`;
   setupChunkCopy(lines);
   openModal('modalRead');
 }
@@ -1092,6 +1197,207 @@ function setupChunkCopy(lines){
   draw();
 }
 document.getElementById('printReadBtn').addEventListener('click', ()=>window.print());
+
+/* ===================== MASTER BOOK: every book combined, in pages, with search/edit/reorder/duplicate ===================== */
+let mbPages = [], mbAllLines = [], mbCurrentPage = 0, mbEditMode = false;
+let mbSearchMatches = [], mbMatchIdx = -1;
+
+function buildMasterBookLines(){
+  let lines = [];
+  topLevelNotebooks().forEach(nb=>{
+    if(placementsForNotebook(nb.id).length===0) return;
+    lines.push({kind:'part', text:nb.name, nbId:nb.id});
+    lines = lines.concat(buildFullBookLines(nb, 0, []));
+  });
+  return lines;
+}
+function computeMasterPages(){
+  mbAllLines = buildMasterBookLines();
+  mbPages = buildChunks(mbAllLines, 1);
+  if(mbPages.length===0) mbPages=[[]];
+  if(mbCurrentPage>=mbPages.length) mbCurrentPage = mbPages.length-1;
+  if(mbCurrentPage<0) mbCurrentPage = 0;
+}
+function refreshMasterBook(){ if(view.type==='masterbook') renderView(); }
+
+function renderMasterBookView(root, actions){
+  document.getElementById('ctxTitle').textContent = "Master Book";
+  computeMasterPages();
+  const totalBenefits = mbAllLines.filter(l=>l.kind==='para').length;
+  document.getElementById('ctxSub').textContent = `${totalBenefits} benefit(s) · ${mbPages.length} page(s) · ${topLevelNotebooks().filter(n=>placementsForNotebook(n.id).length>0).length} book(s) combined`;
+
+  root.innerHTML = `
+    <div class="triage-toolbar">
+      <input type="text" id="mbSearch" placeholder="Search the whole book...">
+      <button class="btn btn-ghost btn-sm" id="mbSearchBtn">🔍 Search</button>
+      <span class="hint" id="mbMatchInfo"></span>
+      <button class="btn btn-ghost btn-sm" id="mbPrevMatch">◀ match</button>
+      <button class="btn btn-ghost btn-sm" id="mbNextMatch">match ▶</button>
+    </div>
+    <div class="triage-toolbar">
+      <button class="btn btn-ghost btn-sm" id="mbPrevPage">◀ Prev page</button>
+      <span class="hint" id="mbPageIndicator" style="font-family:var(--mono); min-width:110px; text-align:center;"></span>
+      <button class="btn btn-ghost btn-sm" id="mbNextPage">Next page ▶</button>
+      <input type="text" id="mbPageJump" style="width:64px; text-align:center;" placeholder="page #">
+      <button class="btn btn-ghost btn-sm" id="mbGoPage">Go</button>
+      <button class="btn ${mbEditMode?'btn-primary':'btn-ghost'} btn-sm" id="mbEditToggle">✏ Edit mode: ${mbEditMode?'On':'Off'}</button>
+    </div>
+    <div class="triage-toolbar">
+      <button class="btn btn-ghost btn-sm" id="mbDuplicateAll">📋 Duplicate entire book</button>
+      <button class="btn btn-ghost btn-sm" id="mbExportAll">⬇ Export whole book (.txt)</button>
+      <button class="btn btn-ghost btn-sm" id="mbPrintBtn">🖨 Print / Save as PDF</button>
+    </div>
+    <details class="collapsible" id="mbTocDet" open><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>placementsForNotebook(n.id).length>0).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
+    <details class="collapsible" id="mbCopyDet"><summary>Copy in chunks</summary><div class="collapsible-body" id="mbCopyBody"></div></details>
+    ${mbEditMode?'<div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">✏ Edit mode is on — you can edit text, cycle highlight colors, reorder headings/benefits with ▲▼, delete headings, and duplicate a book, right from the page. Changes save straight to the shared benefit, so every notebook that includes it updates automatically.</div>':''}
+    <div class="read-doc" id="mbPageContent" style="min-height:300px;"></div>
+  `;
+
+  renderMbToc();
+  renderMbCopyPanel();
+  drawMbPage();
+
+  document.getElementById('mbPrevPage').addEventListener('click', ()=>{ if(mbCurrentPage>0){ mbCurrentPage--; drawMbPage(); } });
+  document.getElementById('mbNextPage').addEventListener('click', ()=>{ if(mbCurrentPage<mbPages.length-1){ mbCurrentPage++; drawMbPage(); } });
+  document.getElementById('mbGoPage').addEventListener('click', ()=>{
+    const n = parseInt(document.getElementById('mbPageJump').value,10);
+    if(n && n>=1 && n<=mbPages.length){ mbCurrentPage=n-1; drawMbPage(); } else alert(`Enter a page between 1 and ${mbPages.length}.`);
+  });
+  document.getElementById('mbEditToggle').addEventListener('click', ()=>{ mbEditMode=!mbEditMode; renderView(); });
+
+  document.getElementById('mbDuplicateAll').addEventListener('click', async ()=>{
+    const nonEmpty = topLevelNotebooks().filter(n=>placementsForNotebook(n.id).length>0);
+    if(nonEmpty.length===0){ alert("Nothing to duplicate yet."); return; }
+    if(!confirm(`Duplicate all ${nonEmpty.length} book(s) with fully independent copies of every benefit, so you can experiment safely? This can take a moment for large libraries.`)) return;
+    const btn = document.getElementById('mbDuplicateAll'); btn.textContent='⏳ duplicating…'; btn.disabled=true;
+    for(const nb of nonEmpty) await duplicateNotebookDeep(nb, null);
+    renderSidebar();
+    alert("Done — copies were added to your notebook list, each named \"(copy)\". Your originals are untouched.");
+    renderView();
+  });
+  document.getElementById('mbExportAll').addEventListener('click', ()=>{
+    let txt = '';
+    topLevelNotebooks().forEach(nb=>{
+      if(placementsForNotebook(nb.id).length===0) return;
+      txt += `${nb.name}\n${'='.repeat(nb.name.length)}\n\n`;
+      txt += buildFullBookLines(nb,0,[]).map(lineToPlainText).join('');
+      txt += '\n\n';
+    });
+    const blob = new Blob(["\uFEFF"+txt],{type:'text/plain;charset=utf-8'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='master-book.txt'; a.click();
+  });
+  document.getElementById('mbPrintBtn').addEventListener('click', ()=>window.print());
+
+  const search = document.getElementById('mbSearch');
+  search.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); runMbSearch(search.value); } });
+  document.getElementById('mbSearchBtn').addEventListener('click', ()=>runMbSearch(search.value));
+  document.getElementById('mbPrevMatch').addEventListener('click', ()=>stepMbMatch(-1));
+  document.getElementById('mbNextMatch').addEventListener('click', ()=>stepMbMatch(1));
+}
+
+function drawMbPage(){
+  const content = document.getElementById('mbPageContent');
+  const page = mbPages[mbCurrentPage] || [];
+  const q = (document.getElementById('mbSearch')||{}).value || '';
+  const linesWithQuery = page.map(l => l.kind==='para' ? Object.assign({}, l, {searchQuery:q}) : l);
+  content.innerHTML = linesWithQuery.length ? renderBookHtml(linesWithQuery, mbEditMode) : `<div class="empty">Nothing here yet.</div>`;
+  const indicator = document.getElementById('mbPageIndicator');
+  if(indicator) indicator.textContent = `Page ${mbCurrentPage+1} of ${mbPages.length}`;
+}
+
+function renderMbToc(){
+  const wrap = document.getElementById('mbToc');
+  wrap.innerHTML='';
+  const firstPage = new Map();
+  mbPages.forEach((page,pIdx)=>{
+    page.forEach(l=>{
+      if((l.kind==='heading'||l.kind==='part') && l.nbId && !firstPage.has(l.nbId)) firstPage.set(l.nbId, pIdx);
+    });
+  });
+  function renderLevel(parentId, depth){
+    (parentId===null ? topLevelNotebooks() : childrenOf(parentId)).forEach(nb=>{
+      if(placementsForNotebook(nb.id).length===0) return;
+      const row = document.createElement('div');
+      row.style.marginLeft = (depth*14)+'px';
+      row.style.cursor='pointer';
+      row.style.padding='4px 0';
+      row.style.fontSize = depth===0? '13px':'12px';
+      row.style.fontWeight = depth===0? '700':'400';
+      row.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span> ${escapeHtml(nb.name)}`;
+      row.addEventListener('click', ()=>{
+        const p = firstPage.get(nb.id);
+        if(p!==undefined){ mbCurrentPage=p; drawMbPage(); }
+      });
+      wrap.appendChild(row);
+      renderLevel(nb.id, depth+1);
+    });
+  }
+  renderLevel(null, 0);
+}
+
+function renderMbCopyPanel(){
+  const body = document.getElementById('mbCopyBody');
+  body.innerHTML = `
+    <div class="mini-row" style="margin-bottom:10px;">
+      <span class="grow hint">Copying the whole combined book in chunks. ~3000 characters ≈ 1 page.</span>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12px; white-space:nowrap;">Pages per chunk <input type="text" id="mbChunkInput" style="width:50px; text-align:center;" value="${pagesPerChunk}"></label>
+    </div>
+    <div id="mbChunkSummary" class="hint" style="margin-bottom:8px;"></div>
+    <div id="mbChunkList" style="display:flex; flex-direction:column; gap:8px;"></div>`;
+  const copied = new Set();
+  function draw(){
+    const totalChars = mbAllLines.reduce((s,l)=>s+lineToPlainText(l).length,0);
+    const totalPages = Math.max(1, Math.round(totalChars/CHARS_PER_PAGE));
+    const chunks = buildChunks(mbAllLines, pagesPerChunk);
+    document.getElementById('mbChunkSummary').textContent = `~${totalPages} page(s) total · split into ${chunks.length} chunk(s) of ~${pagesPerChunk} page(s) each`;
+    const listEl = document.getElementById('mbChunkList');
+    listEl.innerHTML='';
+    chunks.forEach((chunk,i)=>{
+      const paraCount = chunk.filter(l=>l.kind==='para').length;
+      const chunkText = chunk.map(lineToPlainText).join('');
+      const approxPages = Math.max(1, Math.round(chunkText.length/CHARS_PER_PAGE));
+      const row=document.createElement('div'); row.className='mini-row';
+      row.style.borderColor = copied.has(i)?'var(--teal)':'var(--line)';
+      row.innerHTML = `<span class="grow">${copied.has(i)?'✓ ':''}Chunk ${i+1} of ${chunks.length} — ${paraCount} benefit(s) (~${approxPages} page${approxPages===1?'':'s'})</span>`;
+      const btn=document.createElement('button');
+      btn.className = copied.has(i)?'btn btn-primary btn-sm':'btn btn-ghost btn-sm';
+      btn.textContent = copied.has(i)?'Copied ✓':'📋 Copy this chunk';
+      btn.addEventListener('click', ()=>{
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(chunkText).then(()=>{ copied.add(i); draw(); }).catch(()=>alert("Couldn't copy — clipboard access may be blocked."));
+        } else alert("Clipboard not available in this browser.");
+      });
+      row.appendChild(btn);
+      listEl.appendChild(row);
+    });
+  }
+  document.getElementById('mbChunkInput').addEventListener('input', (e)=>{
+    const v = parseInt(e.target.value,10);
+    if(v && v>0){ pagesPerChunk=v; localStorage.setItem('ledger_pages_per_chunk', String(v)); copied.clear(); draw(); }
+  });
+  draw();
+}
+
+function runMbSearch(query){
+  const q = query.trim().toLowerCase();
+  mbSearchMatches = [];
+  if(q){
+    mbPages.forEach((page,pIdx)=>{ page.forEach(l=>{ if(l.kind==='para' && l.text.toLowerCase().includes(q)) mbSearchMatches.push(pIdx); }); });
+  }
+  mbMatchIdx = mbSearchMatches.length ? 0 : -1;
+  const info = document.getElementById('mbMatchInfo');
+  if(info) info.textContent = mbSearchMatches.length ? `${mbMatchIdx+1} of ${mbSearchMatches.length} matches` : (q?'No matches':'');
+  if(mbMatchIdx>=0) mbCurrentPage = mbSearchMatches[mbMatchIdx];
+  drawMbPage();
+}
+function stepMbMatch(dir){
+  if(!mbSearchMatches.length) return;
+  mbMatchIdx = (mbMatchIdx+dir+mbSearchMatches.length)%mbSearchMatches.length;
+  mbCurrentPage = mbSearchMatches[mbMatchIdx];
+  const info = document.getElementById('mbMatchInfo');
+  if(info) info.textContent = `${mbMatchIdx+1} of ${mbSearchMatches.length} matches`;
+  drawMbPage();
+}
 
 /* ===================== ALL BENEFITS VIEW ===================== */
 function renderAllBenefitsView(root, actions){
@@ -1296,9 +1602,75 @@ function renderAhRow(nb, depth, alreadySet){
   }
   return row;
 }
-document.addEventListener('click',(e)=>{
-  const btn = e.target.closest('[data-action="addhead"]');
-  if(btn) openAddHeadingsModal(btn.dataset.benefit);
+/* ===================== Shared inline text editor (used by book/master-book paragraphs) ===================== */
+function editBenefitInline(benefitId, pEl){
+  const b = benefitById(benefitId);
+  if(!b) return;
+  const span = pEl.querySelector('[data-role="ptext"]');
+  const orig = span.innerHTML;
+  span.outerHTML = `<span data-role="ptext"><textarea style="width:100%; min-height:60px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:6px; font-size:13.5px;">${escapeHtml(b.text)}</textarea><div style="margin-top:4px;"><button class="btn btn-primary btn-sm" data-role="save-inline">Save</button> <button class="btn btn-ghost btn-sm" data-role="cancel-inline">Cancel</button></div></span>`;
+  pEl.querySelector('[data-role="save-inline"]').addEventListener('click', async ()=>{
+    b.text = pEl.querySelector('textarea').value;
+    await idbPut('benefits', b);
+    if(document.getElementById('modalRead').classList.contains('show')) refreshOpenBookIfNeeded();
+    if(typeof refreshMasterBook === 'function') refreshMasterBook();
+    renderView();
+  });
+  pEl.querySelector('[data-role="cancel-inline"]').addEventListener('click', ()=>{
+    pEl.querySelector('[data-role="ptext"]').outerHTML = `<span data-role="ptext">${orig}</span>`;
+  });
+}
+
+document.addEventListener('click', async (e)=>{
+  const addBtn = e.target.closest('[data-action="addhead"]');
+  if(addBtn){ openAddHeadingsModal(addBtn.dataset.benefit); return; }
+
+  const hlBtn = e.target.closest('[data-action="hl-benefit"]');
+  if(hlBtn){
+    const b = benefitById(hlBtn.dataset.benefit);
+    if(b){ b.highlight = nextHighlight(b.highlight); await idbPut('benefits', b); refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook(); }
+    return;
+  }
+  const editBtn = e.target.closest('[data-action="edit-benefit"]');
+  if(editBtn){ editBenefitInline(editBtn.dataset.benefit, editBtn.closest('p')); return; }
+
+  const moveUp = e.target.closest('[data-action="move-p-up"]');
+  const moveDown = e.target.closest('[data-action="move-p-down"]');
+  if(moveUp||moveDown){
+    const btn = moveUp||moveDown;
+    await movePlacementSibling(btn.dataset.notebook, btn.dataset.placement, moveUp?-1:1);
+    refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook();
+    return;
+  }
+  const moveHUp = e.target.closest('[data-action="move-h-up"]');
+  const moveHDown = e.target.closest('[data-action="move-h-down"]');
+  if(moveHUp||moveHDown){
+    const btn = moveHUp||moveHDown;
+    const nb = nbById(btn.dataset.notebook);
+    if(nb){ await moveNotebookSibling(nb, moveHUp?-1:1); renderSidebar(); refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook(); }
+    return;
+  }
+  const delHeading = e.target.closest('[data-action="del-heading"]');
+  if(delHeading){
+    const nb = nbById(delHeading.dataset.notebook);
+    if(nb && confirm(`Delete heading "${nb.name}" and everything nested under it? Benefits are kept — only placements here are removed.`)){
+      await deleteNotebookAndDescendants(nb.id);
+      renderSidebar(); refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook();
+    }
+    return;
+  }
+  const dupBtn = e.target.closest('[data-action="dup-notebook"]');
+  if(dupBtn){
+    const nb = nbById(dupBtn.dataset.notebook);
+    if(nb && confirm(`Duplicate "${nb.name}" and everything nested inside it, with fully independent copies of every benefit? Safe to experiment on afterwards.`)){
+      dupBtn.textContent = '⏳ duplicating…'; dupBtn.disabled = true;
+      const copy = await duplicateNotebookDeep(nb, nb.parentId);
+      renderSidebar();
+      alert(`Created "${copy.name}". Your original is untouched.`);
+      refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook();
+    }
+    return;
+  }
 });
 
 /* ===================== Modal plumbing ===================== */
