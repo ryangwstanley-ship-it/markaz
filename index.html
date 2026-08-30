@@ -120,7 +120,7 @@
   .placement-num{font-family:var(--mono); color:var(--amber); font-size:12px; min-width:34px; padding-top:2px;}
   .placement-body{flex:1; font-size:13.5px; line-height:1.6; white-space:pre-wrap; word-break:break-word;}
   .placement-body textarea{width:100%; min-height:70px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:8px; font-size:13.5px;}
-  .placement-actions{display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; max-width:210px;}
+  .placement-actions{display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; max-width:260px;}
   .read-doc mark{background:var(--amber); color:#1a1408; padding:0 2px; border-radius:2px;}
   .organised-chip{display:inline-block; font-size:10px; font-family:var(--mono); background:var(--bg-raised); color:var(--teal); padding:2px 7px; border-radius:8px; margin-top:5px;}
 
@@ -168,9 +168,9 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand"><span class="mark">§</span><h1>Ledger</h1></div>
 
+    <div class="nav-item" data-nav="masterbook">📘 Master Book</div>
     <div class="nav-item" data-nav="import">📥 Import Text</div>
     <div class="nav-item" data-nav="triage">🏷 Triage: New Benefits<span class="badge" id="pendingBadge">0</span></div>
-    <div class="nav-item" data-nav="masterbook">📘 Master Book</div>
     <div class="nav-item" data-nav="all">📚 All Benefits</div>
     <div class="nav-item" data-nav="trash">🗑 Trash</div>
 
@@ -259,11 +259,11 @@
 
 <div class="modal-overlay" id="modalAddHeadings">
   <div class="modal">
-    <h3>Add this benefit to more headings <button data-close>✕</button></h3>
+    <h3>Manage headings for this benefit <button data-close>✕</button></h3>
     <div class="modal-body">
       <div class="hint" id="ahBenefitPreview" style="margin-bottom:4px;"></div>
       <input type="text" id="ahSearch" placeholder="Search notebooks...">
-      <div class="hint">Tap any notebook to duplicate this benefit into it — including notebooks in a completely different book. Already-placed ones are greyed out.</div>
+      <div class="hint">Tap any notebook to add this benefit to it — including notebooks in a completely different book. Notebooks it's already placed in show a Remove button instead.</div>
       <div id="ahTree" style="max-height:50vh; overflow:auto; display:flex; flex-direction:column; gap:3px; margin-top:6px;"></div>
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" data-close>Done</button></div>
@@ -409,14 +409,30 @@ async function boot(){
   if(savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeButtons();
 
+  rebuildIndexes();
   renderSidebar();
   renderView();
   updateUndoBtn();
 }
 
-/* ===================== Helpers ===================== */
-function nbById(id){ return notebooks.find(n=>n.id===id); }
-function benefitById(id){ return benefits.find(b=>b.id===id); }
+/* ===================== Helpers (index-backed for speed at scale) ===================== */
+let benefitsIndex = new Map(), notebooksIndex = new Map();
+let benefitPlacementsIndex = new Map(), notebookPlacementsIndex = new Map();
+function rebuildIndexes(){
+  benefitsIndex = new Map(); for(const b of benefits) benefitsIndex.set(b.id, b);
+  notebooksIndex = new Map(); for(const n of notebooks) notebooksIndex.set(n.id, n);
+  benefitPlacementsIndex = new Map();
+  notebookPlacementsIndex = new Map();
+  for(const p of placements){
+    if(!benefitPlacementsIndex.has(p.benefitId)) benefitPlacementsIndex.set(p.benefitId, []);
+    benefitPlacementsIndex.get(p.benefitId).push(p);
+    if(!notebookPlacementsIndex.has(p.notebookId)) notebookPlacementsIndex.set(p.notebookId, []);
+    notebookPlacementsIndex.get(p.notebookId).push(p);
+  }
+  for(const arr of notebookPlacementsIndex.values()) arr.sort((a,b)=>a.number-b.number);
+}
+function nbById(id){ return notebooksIndex.get(id); }
+function benefitById(id){ return benefitsIndex.get(id); }
 function topLevelNotebooks(){ return notebooks.filter(n=>!n.parentId).sort((a,b)=>(a.order??a.createdAt)-(b.order??b.createdAt)); }
 function childrenOf(nbId){ return notebooks.filter(n=>n.parentId===nbId).sort((a,b)=>(a.order??a.createdAt)-(b.order??b.createdAt)); }
 
@@ -442,12 +458,99 @@ async function movePlacementSibling(nbId, placementId, direction){
   return true;
 }
 
-/* ===================== Highlighting ===================== */
-const HIGHLIGHT_COLORS = [null, '#f2d675', '#9fd8a8', '#e9a3c4', '#8fc3e8'];
-function nextHighlight(current){
-  const idx = HIGHLIGHT_COLORS.indexOf(current||null);
-  return HIGHLIGHT_COLORS[(idx+1)%HIGHLIGHT_COLORS.length];
+/* ===================== Highlighting: selective word/phrase ranges, one subtle color ===================== */
+const HIGHLIGHT_COLOR = 'rgba(250, 204, 21, 0.28)';
+function renderTextWithHighlights(text, highlights){
+  if(!highlights || !highlights.length) return escapeHtml(text);
+  const sorted = [...highlights].sort((a,b)=>a.start-b.start);
+  let html = '', pos = 0;
+  sorted.forEach(h=>{
+    const s = Math.max(pos, Math.min(h.start, text.length));
+    const e = Math.max(s, Math.min(h.end, text.length));
+    if(s>pos) html += escapeHtml(text.slice(pos,s));
+    if(e>s) html += `<mark style="background:${HIGHLIGHT_COLOR}; color:inherit;">${escapeHtml(text.slice(s,e))}</mark>`;
+    pos = Math.max(pos, e);
+  });
+  if(pos<text.length) html += escapeHtml(text.slice(pos));
+  return html;
 }
+function getSelectionOffsetsWithin(containerEl){
+  const sel = window.getSelection();
+  if(!sel || !sel.rangeCount) return null;
+  const range = sel.getRangeAt(0);
+  if(!containerEl.contains(range.startContainer) || !containerEl.contains(range.endContainer)) return null;
+  function textOffset(node, offset){
+    let total = 0;
+    const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT);
+    let n;
+    while(n = walker.nextNode()){
+      if(n === node){ total += offset; return total; }
+      total += n.textContent.length;
+    }
+    return total;
+  }
+  const start = textOffset(range.startContainer, range.startOffset);
+  const end = textOffset(range.endContainer, range.endOffset);
+  if(start===end) return null;
+  return {start: Math.min(start,end), end: Math.max(start,end)};
+}
+
+/* ===================== Arabic-aware search: ignores harakat/tashkeel and common letter variants ===================== */
+const ARABIC_DIACRITICS_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\u0640]/;
+function buildNormalizedMap(text){
+  text = text || '';
+  let normalized = '';
+  const map = [];
+  for(let i=0;i<text.length;i++){
+    const ch = text[i];
+    if(ARABIC_DIACRITICS_RE.test(ch)) continue;
+    let norm = ch;
+    if(/[إأآ]/.test(ch)) norm='ا';
+    else if(ch==='ى') norm='ي';
+    else if(ch==='ة') norm='ه';
+    else norm = ch.toLowerCase();
+    normalized += norm;
+    map.push(i);
+  }
+  return {normalized, map};
+}
+function normalizeSimple(s){ return buildNormalizedMap(s).normalized; }
+function matchesQuery(text, query){
+  if(!query) return true;
+  return normalizeSimple(text).includes(normalizeSimple(query));
+}
+function extendPastDiacritics(text, pos){
+  let end = pos+1;
+  while(end<text.length && ARABIC_DIACRITICS_RE.test(text[end])) end++;
+  return end;
+}
+function highlightQuery(text, q){
+  if(!q) return escapeHtml(text);
+  const {normalized, map} = buildNormalizedMap(text);
+  const nq = normalizeSimple(q);
+  if(!nq) return escapeHtml(text);
+  const ranges = [];
+  let searchFrom = 0, idx;
+  while((idx = normalized.indexOf(nq, searchFrom)) !== -1){
+    const startOrig = map[idx];
+    const lastCharOrig = map[idx+nq.length-1];
+    const endOrig = extendPastDiacritics(text, lastCharOrig);
+    ranges.push({start:startOrig, end:endOrig});
+    searchFrom = idx+nq.length;
+  }
+  if(!ranges.length) return escapeHtml(text);
+  let html='', cursor=0;
+  ranges.forEach(r=>{
+    if(r.start>cursor) html += escapeHtml(text.slice(cursor, r.start));
+    html += `<mark>${escapeHtml(text.slice(r.start, r.end))}</mark>`;
+    cursor = r.end;
+  });
+  html += escapeHtml(text.slice(cursor));
+  return html;
+}
+
+/* ===================== Sidebar expand/collapse state ===================== */
+let expandedNbIds = new Set();
 
 /* ===================== Deep duplicate (independent benefits, safe to experiment on) ===================== */
 async function duplicateNotebookDeep(nb, targetParentId){
@@ -455,7 +558,7 @@ async function duplicateNotebookDeep(nb, targetParentId){
   async function cloneBenefit(oldId){
     if(idMap.has(oldId)) return idMap.get(oldId);
     const old = benefitById(oldId);
-    const clone = {id:uid('ben'), text: old.text, trashed:false, createdAt:Date.now(), order: benefits.length, highlight: old.highlight||null};
+    const clone = {id:uid('ben'), text: old.text, trashed:false, createdAt:Date.now(), order: benefits.length};
     benefits.push(clone); await idbPut('benefits', clone);
     idMap.set(oldId, clone.id);
     return clone.id;
@@ -463,7 +566,7 @@ async function duplicateNotebookDeep(nb, targetParentId){
   async function cloneNode(oldNb, newParentId, isRoot){
     const newNb = {id:uid('nb'), name: isRoot ? oldNb.name+' (copy)' : oldNb.name, color:oldNb.color, parentId:newParentId, nextNumber:1, order:oldNb.order, createdAt:Date.now()};
     notebooks.push(newNb); await idbPut('notebooks', newNb);
-    const ownPlacements = placements.filter(p=>p.notebookId===oldNb.id);
+    const ownPlacements = notebookPlacementsIndex.get(oldNb.id) || placements.filter(p=>p.notebookId===oldNb.id);
     let maxNum = 0;
     for(const p of ownPlacements){
       const newBenId = await cloneBenefit(p.benefitId);
@@ -476,32 +579,36 @@ async function duplicateNotebookDeep(nb, targetParentId){
     for(const child of childrenOf(oldNb.id)) await cloneNode(child, newNb.id, false);
     return newNb;
   }
-  return cloneNode(nb, targetParentId, true);
+  const result = await cloneNode(nb, targetParentId, true);
+  rebuildIndexes();
+  return result;
 }
 function placementsForNotebook(nbId){
-  return placements.filter(p=>p.notebookId===nbId && benefitById(p.benefitId) && !benefitById(p.benefitId).trashed)
-    .sort((a,b)=>a.number-b.number);
+  return (notebookPlacementsIndex.get(nbId)||[]).filter(p=>{
+    const b = benefitsIndex.get(p.benefitId);
+    return b && !b.trashed;
+  });
 }
-function placementsForBenefit(benId){ return placements.filter(p=>p.benefitId===benId); }
+function placementsForBenefit(benId){ return benefitPlacementsIndex.get(benId) || []; }
 
 function pendingForTopLevelTriage(){
   const topIds = new Set(topLevelNotebooks().map(n=>n.id));
   return benefits.filter(b=>{
     if(b.trashed) return false;
     if(skippedIds.has('top::'+b.id)) return false;
-    return !placements.some(p=>p.benefitId===b.id && topIds.has(p.notebookId));
+    return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>topIds.has(p.notebookId));
   }).sort((a,b)=>a.order-b.order);
 }
 /* benefits placed directly in nb that have NOT yet been placed into any of nb's own children */
 function pendingForChildren(nb){
   const childIds = new Set(childrenOf(nb.id).map(c=>c.id));
-  const placedInNb = placements.filter(p=>p.notebookId===nb.id);
+  const placedInNb = notebookPlacementsIndex.get(nb.id) || [];
   const uniqueBenIds = [...new Set(placedInNb.map(p=>p.benefitId))];
   return uniqueBenIds.map(benefitById).filter(b=>{
     if(!b || b.trashed) return false;
     if(skippedIds.has('hd::'+nb.id+'::'+b.id)) return false;
     if(childIds.size===0) return true;
-    return !placements.some(p=>p.benefitId===b.id && childIds.has(p.notebookId));
+    return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>childIds.has(p.notebookId));
   });
 }
 function skippedBenefitsForScope(scopeKey){
@@ -511,6 +618,7 @@ function skippedBenefitsForScope(scopeKey){
 
 /* ===================== Sidebar ===================== */
 function renderSidebar(){
+  rebuildIndexes();
   document.querySelectorAll('.nav-item').forEach(el=>{
     const nav = el.dataset.nav;
     el.classList.toggle('active',
@@ -533,16 +641,26 @@ function renderSidebar(){
   const wrap = document.getElementById('nbList');
   wrap.innerHTML="";
   function renderLevel(parentId, depth){
-    notebooks.filter(n=>n.parentId===parentId).sort((a,b)=>a.createdAt-b.createdAt).forEach(nb=>{
+    (parentId===null ? topLevelNotebooks() : childrenOf(parentId)).forEach(nb=>{
       const count = placementsForNotebook(nb.id).length;
+      const hasKids = childrenOf(nb.id).length>0;
+      const expanded = expandedNbIds.has(nb.id);
       const div=document.createElement('div');
       div.className='nb-item'+(view.type==='notebook'&&view.id===nb.id?' active':'');
       div.style.marginLeft = (depth*14)+'px';
-      div.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${depth>0?'↳ ':''}${escapeHtml(nb.name)}</span><span class="nb-count">${count}</span><button class="icon-btn danger" data-role="delnb" title="Delete this notebook">✕</button>`;
-      div.addEventListener('click',()=>switchView({type:'notebook', id:nb.id}));
-      div.addEventListener('dblclick',async ()=>{
+      const chevron = hasKids ? `<span data-role="chevron" style="width:12px; display:inline-block; color:var(--ink-faint); cursor:pointer;">${expanded?'▾':'▸'}</span>` : `<span style="width:12px; display:inline-block;"></span>`;
+      div.innerHTML = `${chevron}<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${escapeHtml(nb.name)}</span><span class="nb-count">${count}</span><button class="icon-btn danger" data-role="delnb" title="Delete this notebook">✕</button>`;
+      div.addEventListener('click',()=>{ expandedNbIds.add(nb.id); switchView({type:'notebook', id:nb.id}); });
+      div.addEventListener('dblclick',async (e)=>{
+        e.stopPropagation();
         const n = prompt("Rename notebook:", nb.name);
         if(n && n.trim()){ nb.name=n.trim(); await idbPut('notebooks',nb); renderSidebar(); renderView(); }
+      });
+      const chev = div.querySelector('[data-role="chevron"]');
+      if(chev) chev.addEventListener('click',(e)=>{
+        e.stopPropagation();
+        if(expandedNbIds.has(nb.id)) expandedNbIds.delete(nb.id); else expandedNbIds.add(nb.id);
+        renderSidebar();
       });
       div.querySelector('[data-role="delnb"]').addEventListener('click', async (e)=>{
         e.stopPropagation();
@@ -552,7 +670,7 @@ function renderSidebar(){
         else { renderSidebar(); renderView(); }
       });
       wrap.appendChild(div);
-      renderLevel(nb.id, depth+1);
+      if(expanded) renderLevel(nb.id, depth+1);
     });
   }
   renderLevel(null, 0);
@@ -592,10 +710,17 @@ document.getElementById('createNbBtn').addEventListener('click', async ()=>{
 function switchView(v){
   view=v;
   pendingLimit=40; notebookLimit=100; allBenefitsLimit=60; headingPendingLimit=40;
+  if(v.type==='notebook'){
+    let cur = nbById(v.id);
+    while(cur){ expandedNbIds.add(cur.id); cur = cur.parentId ? nbById(cur.parentId) : null; }
+  }
   renderSidebar(); renderView();
+  window.scrollTo(0,0);
   if(window.innerWidth<=900) document.getElementById('sidebar').classList.remove('open');
 }
 function renderView(){
+  rebuildIndexes();
+  const scrollY = window.scrollY;
   const root=document.getElementById('viewRoot');
   const actions=document.getElementById('topbarActions');
   root.innerHTML=""; actions.innerHTML="";
@@ -606,6 +731,7 @@ function renderView(){
   else if(view.type==='notebook') renderNotebookView(root, actions, view.id);
   else if(view.type==='all') renderAllBenefitsView(root, actions);
   else if(view.type==='trash') renderTrashView(root, actions);
+  window.scrollTo(0, scrollY);
 }
 
 /* ===================== Copy helper ===================== */
@@ -722,8 +848,8 @@ function renderTriageView(root, actions){
   let filtered = pending;
 
   function draw(){
-    const q = search.value.trim().toLowerCase();
-    filtered = q ? pending.filter(b=>b.text.toLowerCase().includes(q)) : pending;
+    const q = search.value.trim();
+    filtered = q ? pending.filter(b=>matchesQuery(b.text,q)) : pending;
     const listEl = document.getElementById('triageList');
     listEl.innerHTML="";
     if(nbs.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>No notebooks yet. Add one from the sidebar first.</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; }
@@ -970,8 +1096,8 @@ function renderNotebookView(root, actions, nbId){
   const search = listDet.querySelector('#nbSearch');
   const bodyWrap = listDet.querySelector('#nbBody');
   function drawList(){
-    const q = search.value.trim().toLowerCase();
-    const filtered = q ? list.filter(p=>benefitById(p.benefitId).text.toLowerCase().includes(q)) : list;
+    const q = search.value.trim();
+    const filtered = q ? list.filter(p=>matchesQuery(benefitById(p.benefitId).text,q)) : list;
     bodyWrap.innerHTML="";
     if(filtered.length===0){
       bodyWrap.innerHTML = `<div class="empty"><div class="big">▢</div><div>${list.length===0?"No benefits placed here yet.":"No matches."}</div></div>`;
@@ -993,21 +1119,42 @@ function renderNotebookView(root, actions, nbId){
 function renderPlacementRow(p, childIds, children){
   const b = benefitById(p.benefitId);
   const el = document.createElement('div'); el.className='placement-row';
-  const organisedIn = children.filter(c=>placements.some(pl=>pl.benefitId===b.id && pl.notebookId===c.id));
-  const hlStyle = b.highlight ? `background:${b.highlight}; border-radius:6px;` : '';
-  el.style.cssText += hlStyle;
+  const myPlacements = placementsForBenefit(b.id);
+  const organisedIn = children.filter(c=>myPlacements.some(pl=>pl.notebookId===c.id));
+  if(b.favorite) el.style.cssText += 'border-left:2px solid var(--amber); background:rgba(212,162,76,0.07);';
+  const bodyHtml = renderTextWithHighlights(b.text, b.highlights);
+  const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
   el.innerHTML = `<div class="placement-num">#${p.number}</div>
-    <div class="placement-body" data-role="body">${escapeHtml(b.text)}${organisedIn.length?`<div>${organisedIn.map(c=>`<span class="organised-chip">↳ ${escapeHtml(c.name)}</span>`).join(' ')}</div>`:''}</div>
+    <div class="placement-body" data-role="body"><span data-role="ptext">${bodyHtml}</span>${organisedIn.length?`<div>${organisedIn.map(c=>`<span class="organised-chip">↳ ${escapeHtml(c.name)}</span>`).join(' ')}</div>`:''}${annotationHtml}</div>
     <div class="placement-actions"></div>`;
   const actions = el.querySelector('.placement-actions');
   actions.appendChild(makeCopyBtn(b.text));
+  const favBtn=document.createElement('button'); favBtn.className='icon-btn'+(b.favorite?' active':''); favBtn.textContent=b.favorite?'★':'☆';
+  favBtn.title='Favourite'; favBtn.addEventListener('click', async ()=>{ b.favorite=!b.favorite; await idbPut('benefits', b); renderView(); });
+  const noteBtn=document.createElement('button'); noteBtn.className='icon-btn'; noteBtn.textContent=b.annotation?'✎ edit note':'+ note';
+  noteBtn.addEventListener('click', async ()=>{
+    const val = prompt("Annotation for this benefit (shown as \"note: ...\" — leave empty to remove):", b.annotation||"");
+    if(val!==null){ b.annotation=val.trim(); await idbPut('benefits', b); renderView(); }
+  });
   const upBtn=document.createElement('button'); upBtn.className='icon-btn'; upBtn.textContent='▲';
   upBtn.addEventListener('click', async ()=>{ await movePlacementSibling(p.notebookId, p.id, -1); renderView(); });
   const downBtn=document.createElement('button'); downBtn.className='icon-btn'; downBtn.textContent='▼';
   downBtn.addEventListener('click', async ()=>{ await movePlacementSibling(p.notebookId, p.id, 1); renderView(); });
   const hlBtn=document.createElement('button'); hlBtn.className='icon-btn'; hlBtn.textContent='🖍';
-  hlBtn.title='Cycle highlight color';
-  hlBtn.addEventListener('click', async ()=>{ b.highlight = nextHighlight(b.highlight); await idbPut('benefits', b); renderView(); });
+  hlBtn.title='Select some text above, then click to highlight it';
+  hlBtn.addEventListener('click', async ()=>{
+    const textEl = el.querySelector('[data-role="ptext"]');
+    const offsets = getSelectionOffsetsWithin(textEl);
+    if(!offsets){ alert("Select some text in the benefit first, then click 🖍."); return; }
+    b.highlights = b.highlights || []; b.highlights.push(offsets);
+    await idbPut('benefits', b); renderView();
+  });
+  const clearHlBtn = (b.highlights && b.highlights.length) ? (()=>{
+    const btn=document.createElement('button'); btn.className='icon-btn'; btn.textContent='🧹';
+    btn.title='Clear highlights';
+    btn.addEventListener('click', async ()=>{ b.highlights=[]; await idbPut('benefits', b); renderView(); });
+    return btn;
+  })() : null;
   const editBtn=document.createElement('button'); editBtn.className='icon-btn'; editBtn.textContent='edit';
   editBtn.addEventListener('click', ()=>{
     const body = el.querySelector('[data-role="body"]');
@@ -1025,7 +1172,9 @@ function renderPlacementRow(p, childIds, children){
     if(!confirm("Trash this benefit entirely? It disappears from every notebook (recoverable from Trash).")) return;
     b.trashed=true; await idbPut('benefits', b); renderSidebar(); renderView();
   });
-  actions.appendChild(upBtn); actions.appendChild(downBtn); actions.appendChild(hlBtn); actions.appendChild(editBtn); actions.appendChild(removeBtn); actions.appendChild(trashBtn);
+  actions.appendChild(favBtn); actions.appendChild(noteBtn); actions.appendChild(upBtn); actions.appendChild(downBtn); actions.appendChild(hlBtn);
+  if(clearHlBtn) actions.appendChild(clearHlBtn);
+  actions.appendChild(editBtn); actions.appendChild(removeBtn); actions.appendChild(trashBtn);
   return el;
 }
 
@@ -1043,21 +1192,27 @@ function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-
 function paraHtml(l, editMode){
   const indent = (l.depth||0)*20;
   const b = benefitById(l.benefitId);
-  const hl = b && b.highlight ? `background:${b.highlight}; border-radius:4px; padding:2px 6px; margin:0 -6px;` : '';
-  const displayText = l.searchQuery ? highlightQuery(l.text, l.searchQuery) : escapeHtml(l.text);
+  const isFav = b && b.favorite;
+  const rowStyle = isFav
+    ? `margin-left:${Math.max(indent-8,0)}px; border-left:2px solid var(--amber); padding-left:8px; background:rgba(212,162,76,0.07); border-radius:0 6px 6px 0;`
+    : `margin-left:${indent}px;`;
+  const displayHtml = l.searchQuery ? highlightQuery(b?b.text:l.text, l.searchQuery) : renderTextWithHighlights(b?b.text:l.text, b?b.highlights:null);
+  const annotationHtml = b && b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
   const editControls = editMode ? `
-    <button class="icon-btn" data-action="hl-benefit" data-benefit="${l.benefitId}" title="Cycle highlight color">🖍</button>
+    <button class="icon-btn" data-action="hl-select" data-benefit="${l.benefitId}" title="Highlight the text you selected">🖍 highlight</button>
+    ${b && b.highlights && b.highlights.length ? `<button class="icon-btn" data-action="hl-clear" data-benefit="${l.benefitId}" title="Clear highlights on this benefit">🧹 clear</button>`:''}
     <button class="icon-btn" data-action="edit-benefit" data-benefit="${l.benefitId}">edit</button>
     ${l.placementId?`<button class="icon-btn" data-action="move-p-up" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▲</button>
     <button class="icon-btn" data-action="move-p-down" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▼</button>`:''}
   `:'';
-  return `<p class="mb-para" data-benefit-line="${l.benefitId}" style="margin-left:${indent}px; ${hl}"><span class="rd-num">#${l.number}</span><span data-role="ptext">${displayText}</span> <button class="icon-btn" data-action="addhead" data-benefit="${l.benefitId}">+ add heading</button>${editControls}</p>`;
-}
-function highlightQuery(text, q){
-  if(!q) return escapeHtml(text);
-  const esc = escapeHtml(text);
-  const escQ = escapeHtml(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  return esc.replace(new RegExp(escQ,'ig'), m=>`<mark>${m}</mark>`);
+  return `<p class="mb-para" data-benefit-line="${l.benefitId}" style="${rowStyle}">
+    <span class="rd-num">#${l.number}</span><span data-role="ptext">${displayHtml}</span>
+    <button class="icon-btn ${isFav?'active':''}" data-action="fav-benefit" data-benefit="${l.benefitId}" title="Favourite this benefit">${isFav?'★':'☆'}</button>
+    <button class="icon-btn" data-action="addhead" data-benefit="${l.benefitId}">🏷 headings</button>
+    <button class="icon-btn" data-action="annotate-benefit" data-benefit="${l.benefitId}">${b&&b.annotation?'✎ edit note':'+ note'}</button>
+    ${editControls}
+    ${annotationHtml}
+  </p>`;
 }
 
 /* tracks which book/read view is currently open so it can be refreshed live after adding a heading */
@@ -1200,7 +1355,7 @@ document.getElementById('printReadBtn').addEventListener('click', ()=>window.pri
 
 /* ===================== MASTER BOOK: every book combined, in pages, with search/edit/reorder/duplicate ===================== */
 let mbPages = [], mbAllLines = [], mbCurrentPage = 0, mbEditMode = false;
-let mbSearchMatches = [], mbMatchIdx = -1;
+let mbSearchMatches = [], mbMatchIdx = -1, mbSearchQuery = '';
 
 function buildMasterBookLines(){
   let lines = [];
@@ -1226,43 +1381,52 @@ function renderMasterBookView(root, actions){
   const totalBenefits = mbAllLines.filter(l=>l.kind==='para').length;
   document.getElementById('ctxSub').textContent = `${totalBenefits} benefit(s) · ${mbPages.length} page(s) · ${topLevelNotebooks().filter(n=>placementsForNotebook(n.id).length>0).length} book(s) combined`;
 
+  const pageNavHtml = (idPrefix)=>`
+    <div class="triage-toolbar" style="justify-content:center;">
+      <button class="btn btn-ghost btn-sm" id="${idPrefix}PrevPage">◀ Prev page</button>
+      <span class="hint" id="${idPrefix}PageIndicator" style="font-family:var(--mono); min-width:110px; text-align:center;"></span>
+      <button class="btn btn-ghost btn-sm" id="${idPrefix}NextPage">Next page ▶</button>
+      <input type="text" id="${idPrefix}PageJump" style="width:64px; text-align:center;" placeholder="page #">
+      <button class="btn btn-ghost btn-sm" id="${idPrefix}GoPage">Go</button>
+    </div>`;
+
   root.innerHTML = `
     <div class="triage-toolbar">
-      <input type="text" id="mbSearch" placeholder="Search the whole book...">
+      <input type="text" id="mbSearch" placeholder="Search the whole book (harakat-insensitive)..." value="${escapeHtml(mbSearchQuery)}">
       <button class="btn btn-ghost btn-sm" id="mbSearchBtn">🔍 Search</button>
       <span class="hint" id="mbMatchInfo"></span>
       <button class="btn btn-ghost btn-sm" id="mbPrevMatch">◀ match</button>
       <button class="btn btn-ghost btn-sm" id="mbNextMatch">match ▶</button>
     </div>
     <div class="triage-toolbar">
-      <button class="btn btn-ghost btn-sm" id="mbPrevPage">◀ Prev page</button>
-      <span class="hint" id="mbPageIndicator" style="font-family:var(--mono); min-width:110px; text-align:center;"></span>
-      <button class="btn btn-ghost btn-sm" id="mbNextPage">Next page ▶</button>
-      <input type="text" id="mbPageJump" style="width:64px; text-align:center;" placeholder="page #">
-      <button class="btn btn-ghost btn-sm" id="mbGoPage">Go</button>
       <button class="btn ${mbEditMode?'btn-primary':'btn-ghost'} btn-sm" id="mbEditToggle">✏ Edit mode: ${mbEditMode?'On':'Off'}</button>
-    </div>
-    <div class="triage-toolbar">
       <button class="btn btn-ghost btn-sm" id="mbDuplicateAll">📋 Duplicate entire book</button>
       <button class="btn btn-ghost btn-sm" id="mbExportAll">⬇ Export whole book (.txt)</button>
       <button class="btn btn-ghost btn-sm" id="mbPrintBtn">🖨 Print / Save as PDF</button>
     </div>
-    <details class="collapsible" id="mbTocDet" open><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>placementsForNotebook(n.id).length>0).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
-    <details class="collapsible" id="mbCopyDet"><summary>Copy in chunks</summary><div class="collapsible-body" id="mbCopyBody"></div></details>
-    ${mbEditMode?'<div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">✏ Edit mode is on — you can edit text, cycle highlight colors, reorder headings/benefits with ▲▼, delete headings, and duplicate a book, right from the page. Changes save straight to the shared benefit, so every notebook that includes it updates automatically.</div>':''}
+    <details class="collapsible" id="mbTocDet"><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>placementsForNotebook(n.id).length>0).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
+    ${mbEditMode?'<div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">✏ Edit mode is on — select text and hit Highlight, edit text, reorder headings/benefits with ▲▼, delete headings, or duplicate a book. ★ favourite and + note stay available all the time. Changes save straight to the shared benefit, so every notebook that includes it updates automatically.</div>':''}
+    ${pageNavHtml('mbTop')}
     <div class="read-doc" id="mbPageContent" style="min-height:300px;"></div>
+    ${pageNavHtml('mbBot')}
+    <details class="collapsible" id="mbCopyDet"><summary>Copy in chunks</summary><div class="collapsible-body" id="mbCopyBody"></div></details>
   `;
 
   renderMbToc();
   renderMbCopyPanel();
   drawMbPage();
+  if(mbSearchQuery) recomputeMbMatches(mbSearchQuery);
 
-  document.getElementById('mbPrevPage').addEventListener('click', ()=>{ if(mbCurrentPage>0){ mbCurrentPage--; drawMbPage(); } });
-  document.getElementById('mbNextPage').addEventListener('click', ()=>{ if(mbCurrentPage<mbPages.length-1){ mbCurrentPage++; drawMbPage(); } });
-  document.getElementById('mbGoPage').addEventListener('click', ()=>{
-    const n = parseInt(document.getElementById('mbPageJump').value,10);
-    if(n && n>=1 && n<=mbPages.length){ mbCurrentPage=n-1; drawMbPage(); } else alert(`Enter a page between 1 and ${mbPages.length}.`);
-  });
+  function wirePageNav(idPrefix){
+    document.getElementById(idPrefix+'PrevPage').addEventListener('click', ()=>{ if(mbCurrentPage>0){ mbCurrentPage--; drawMbPage(); } });
+    document.getElementById(idPrefix+'NextPage').addEventListener('click', ()=>{ if(mbCurrentPage<mbPages.length-1){ mbCurrentPage++; drawMbPage(); } });
+    document.getElementById(idPrefix+'GoPage').addEventListener('click', ()=>{
+      const n = parseInt(document.getElementById(idPrefix+'PageJump').value,10);
+      if(n && n>=1 && n<=mbPages.length){ mbCurrentPage=n-1; drawMbPage(); } else alert(`Enter a page between 1 and ${mbPages.length}.`);
+    });
+  }
+  wirePageNav('mbTop'); wirePageNav('mbBot');
+
   document.getElementById('mbEditToggle').addEventListener('click', ()=>{ mbEditMode=!mbEditMode; renderView(); });
 
   document.getElementById('mbDuplicateAll').addEventListener('click', async ()=>{
@@ -1289,6 +1453,7 @@ function renderMasterBookView(root, actions){
   document.getElementById('mbPrintBtn').addEventListener('click', ()=>window.print());
 
   const search = document.getElementById('mbSearch');
+  search.addEventListener('input', ()=>{ mbSearchQuery = search.value; });
   search.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); runMbSearch(search.value); } });
   document.getElementById('mbSearchBtn').addEventListener('click', ()=>runMbSearch(search.value));
   document.getElementById('mbPrevMatch').addEventListener('click', ()=>stepMbMatch(-1));
@@ -1298,11 +1463,13 @@ function renderMasterBookView(root, actions){
 function drawMbPage(){
   const content = document.getElementById('mbPageContent');
   const page = mbPages[mbCurrentPage] || [];
-  const q = (document.getElementById('mbSearch')||{}).value || '';
+  const q = mbSearchQuery || '';
   const linesWithQuery = page.map(l => l.kind==='para' ? Object.assign({}, l, {searchQuery:q}) : l);
   content.innerHTML = linesWithQuery.length ? renderBookHtml(linesWithQuery, mbEditMode) : `<div class="empty">Nothing here yet.</div>`;
-  const indicator = document.getElementById('mbPageIndicator');
-  if(indicator) indicator.textContent = `Page ${mbCurrentPage+1} of ${mbPages.length}`;
+  ['mbTopPageIndicator','mbBotPageIndicator'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.textContent = `Page ${mbCurrentPage+1} of ${mbPages.length}`;
+  });
 }
 
 function renderMbToc(){
@@ -1378,15 +1545,20 @@ function renderMbCopyPanel(){
   draw();
 }
 
-function runMbSearch(query){
-  const q = query.trim().toLowerCase();
+function recomputeMbMatches(query){
+  const q = (query||'').trim();
   mbSearchMatches = [];
-  if(q){
-    mbPages.forEach((page,pIdx)=>{ page.forEach(l=>{ if(l.kind==='para' && l.text.toLowerCase().includes(q)) mbSearchMatches.push(pIdx); }); });
-  }
+  if(q){ mbPages.forEach((page,pIdx)=>{ page.forEach(l=>{ if(l.kind==='para' && matchesQuery(l.text,q)) mbSearchMatches.push(pIdx); }); }); }
+  if(mbMatchIdx>=mbSearchMatches.length) mbMatchIdx = mbSearchMatches.length-1;
+  const info = document.getElementById('mbMatchInfo');
+  if(info) info.textContent = mbSearchMatches.length ? `${Math.max(mbMatchIdx,0)+1} of ${mbSearchMatches.length} matches` : (q?'No matches':'');
+}
+function runMbSearch(query){
+  mbSearchQuery = query;
+  recomputeMbMatches(query);
   mbMatchIdx = mbSearchMatches.length ? 0 : -1;
   const info = document.getElementById('mbMatchInfo');
-  if(info) info.textContent = mbSearchMatches.length ? `${mbMatchIdx+1} of ${mbSearchMatches.length} matches` : (q?'No matches':'');
+  if(info) info.textContent = mbSearchMatches.length ? `${mbMatchIdx+1} of ${mbSearchMatches.length} matches` : (query.trim()?'No matches':'');
   if(mbMatchIdx>=0) mbCurrentPage = mbSearchMatches[mbMatchIdx];
   drawMbPage();
 }
@@ -1415,11 +1587,16 @@ function renderAllBenefitsView(root, actions){
   });
   actions.appendChild(delAllBtn);
 
-  root.innerHTML = `<div class="triage-toolbar"><input type="text" id="allSearch" placeholder="Search all benefits..."></div><div id="allList"></div><div class="load-more-row" id="allLoadMore"></div>`;
+  root.innerHTML = `<div class="triage-toolbar">
+      <input type="text" id="allSearch" placeholder="Search all benefits (harakat-insensitive)...">
+      <label class="chk"><input type="checkbox" id="favOnly"> ⭐ Favourites only</label>
+    </div><div id="allList"></div><div class="load-more-row" id="allLoadMore"></div>`;
   const search = document.getElementById('allSearch');
+  const favOnly = document.getElementById('favOnly');
   function draw(){
-    const q=search.value.trim().toLowerCase();
-    const filtered = q ? active.filter(b=>b.text.toLowerCase().includes(q)) : active;
+    const q=search.value.trim();
+    let filtered = q ? active.filter(b=>matchesQuery(b.text,q)) : active;
+    if(favOnly.checked) filtered = filtered.filter(b=>b.favorite);
     const listEl = document.getElementById('allList');
     listEl.innerHTML="";
     if(filtered.length===0){ listEl.innerHTML=`<div class="empty"><div class="big">▢</div><div>${active.length===0?"No benefits imported yet.":"No matches."}</div></div>`; document.getElementById('allLoadMore').innerHTML=""; return; }
@@ -1433,18 +1610,23 @@ function renderAllBenefitsView(root, actions){
     }
   }
   search.addEventListener('input', draw);
+  favOnly.addEventListener('change', draw);
   draw();
 }
 function renderBenefitRow(b){
   const el=document.createElement('div'); el.className='benefit-row';
+  if(b.favorite) el.style.cssText += 'border-left:2px solid var(--amber); background:rgba(212,162,76,0.07);';
   const plc = placementsForBenefit(b.id);
   const chips = plc.map(p=>{ const nb=nbById(p.notebookId); return nb ? `<span class="chip" style="background:${nb.color}">${escapeHtml(nb.name)} #${p.number}</span>` : ''; }).join('');
-  el.innerHTML = `<div>${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div><div class="row-actions"></div>`;
+  const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
+  el.innerHTML = `<div>${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div>${annotationHtml}<div class="row-actions"></div>`;
   const actions = el.querySelector('.row-actions');
   actions.appendChild(makeCopyBtn(b.text));
+  const favBtn=document.createElement('button'); favBtn.className='icon-btn'+(b.favorite?' active':''); favBtn.textContent=b.favorite?'★':'☆';
+  favBtn.addEventListener('click', async ()=>{ b.favorite=!b.favorite; await idbPut('benefits',b); renderView(); });
   const trashBtn=document.createElement('button'); trashBtn.className='icon-btn danger'; trashBtn.textContent='trash';
   trashBtn.addEventListener('click', async ()=>{ if(!confirm("Trash this benefit?")) return; b.trashed=true; await idbPut('benefits',b); renderSidebar(); renderView(); });
-  actions.appendChild(trashBtn);
+  actions.appendChild(favBtn); actions.appendChild(trashBtn);
   return el;
 }
 
@@ -1551,146 +1733,3 @@ document.getElementById('fullResetBtn').addEventListener('click', async ()=>{
   closeModal('modalData');
   switchView({type:'import'});
   alert("Everything has been reset.");
-});
-
-/* ===================== Add benefit to more headings (from any book, cross-tree) ===================== */
-let ahBenefitId = null;
-function openAddHeadingsModal(benefitId){
-  ahBenefitId = benefitId;
-  const b = benefitById(benefitId);
-  document.getElementById('ahBenefitPreview').textContent = b ? (b.text.length>140 ? b.text.slice(0,140)+'…' : b.text) : '';
-  document.getElementById('ahSearch').value = '';
-  renderAhTree('');
-  openModal('modalAddHeadings');
-}
-document.getElementById('ahSearch').addEventListener('input',(e)=>renderAhTree(e.target.value));
-function renderAhTree(query){
-  const wrap = document.getElementById('ahTree');
-  wrap.innerHTML='';
-  const already = new Set(placements.filter(p=>p.benefitId===ahBenefitId).map(p=>p.notebookId));
-  const q = query.trim().toLowerCase();
-  if(q){
-    const matches = notebooks.filter(n=>n.name.toLowerCase().includes(q));
-    if(matches.length===0){ wrap.innerHTML='<div class="hint">No matches.</div>'; return; }
-    matches.forEach(nb=>wrap.appendChild(renderAhRow(nb, 0, already)));
-    return;
-  }
-  function renderLevel(parentId, depth){
-    notebooks.filter(n=>n.parentId===parentId).sort((a,b)=>a.createdAt-b.createdAt).forEach(nb=>{
-      wrap.appendChild(renderAhRow(nb, depth, already));
-      renderLevel(nb.id, depth+1);
-    });
-  }
-  renderLevel(null, 0);
-}
-function renderAhRow(nb, depth, alreadySet){
-  const row = document.createElement('div');
-  row.className = 'nb-item';
-  row.style.marginLeft = (depth*14)+'px';
-  const isAlready = alreadySet.has(nb.id);
-  row.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${escapeHtml(nb.name)}</span>${isAlready?'<span class="nb-count">✓ already here</span>':''}`;
-  if(isAlready){
-    row.style.opacity='0.5'; row.style.cursor='default';
-  } else {
-    row.addEventListener('click', async ()=>{
-      const created = await confirmIntoNotebooks(ahBenefitId, [nb.id]);
-      pushUndo(`added a benefit → ${nb.name}`, ()=>undoPlacements(created));
-      renderSidebar();
-      renderAhTree(document.getElementById('ahSearch').value);
-      refreshOpenBookIfNeeded();
-    });
-  }
-  return row;
-}
-/* ===================== Shared inline text editor (used by book/master-book paragraphs) ===================== */
-function editBenefitInline(benefitId, pEl){
-  const b = benefitById(benefitId);
-  if(!b) return;
-  const span = pEl.querySelector('[data-role="ptext"]');
-  const orig = span.innerHTML;
-  span.outerHTML = `<span data-role="ptext"><textarea style="width:100%; min-height:60px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:6px; font-size:13.5px;">${escapeHtml(b.text)}</textarea><div style="margin-top:4px;"><button class="btn btn-primary btn-sm" data-role="save-inline">Save</button> <button class="btn btn-ghost btn-sm" data-role="cancel-inline">Cancel</button></div></span>`;
-  pEl.querySelector('[data-role="save-inline"]').addEventListener('click', async ()=>{
-    b.text = pEl.querySelector('textarea').value;
-    await idbPut('benefits', b);
-    if(document.getElementById('modalRead').classList.contains('show')) refreshOpenBookIfNeeded();
-    if(typeof refreshMasterBook === 'function') refreshMasterBook();
-    renderView();
-  });
-  pEl.querySelector('[data-role="cancel-inline"]').addEventListener('click', ()=>{
-    pEl.querySelector('[data-role="ptext"]').outerHTML = `<span data-role="ptext">${orig}</span>`;
-  });
-}
-
-document.addEventListener('click', async (e)=>{
-  const addBtn = e.target.closest('[data-action="addhead"]');
-  if(addBtn){ openAddHeadingsModal(addBtn.dataset.benefit); return; }
-
-  const hlBtn = e.target.closest('[data-action="hl-benefit"]');
-  if(hlBtn){
-    const b = benefitById(hlBtn.dataset.benefit);
-    if(b){ b.highlight = nextHighlight(b.highlight); await idbPut('benefits', b); refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook(); }
-    return;
-  }
-  const editBtn = e.target.closest('[data-action="edit-benefit"]');
-  if(editBtn){ editBenefitInline(editBtn.dataset.benefit, editBtn.closest('p')); return; }
-
-  const moveUp = e.target.closest('[data-action="move-p-up"]');
-  const moveDown = e.target.closest('[data-action="move-p-down"]');
-  if(moveUp||moveDown){
-    const btn = moveUp||moveDown;
-    await movePlacementSibling(btn.dataset.notebook, btn.dataset.placement, moveUp?-1:1);
-    refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook();
-    return;
-  }
-  const moveHUp = e.target.closest('[data-action="move-h-up"]');
-  const moveHDown = e.target.closest('[data-action="move-h-down"]');
-  if(moveHUp||moveHDown){
-    const btn = moveHUp||moveHDown;
-    const nb = nbById(btn.dataset.notebook);
-    if(nb){ await moveNotebookSibling(nb, moveHUp?-1:1); renderSidebar(); refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook(); }
-    return;
-  }
-  const delHeading = e.target.closest('[data-action="del-heading"]');
-  if(delHeading){
-    const nb = nbById(delHeading.dataset.notebook);
-    if(nb && confirm(`Delete heading "${nb.name}" and everything nested under it? Benefits are kept — only placements here are removed.`)){
-      await deleteNotebookAndDescendants(nb.id);
-      renderSidebar(); refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook();
-    }
-    return;
-  }
-  const dupBtn = e.target.closest('[data-action="dup-notebook"]');
-  if(dupBtn){
-    const nb = nbById(dupBtn.dataset.notebook);
-    if(nb && confirm(`Duplicate "${nb.name}" and everything nested inside it, with fully independent copies of every benefit? Safe to experiment on afterwards.`)){
-      dupBtn.textContent = '⏳ duplicating…'; dupBtn.disabled = true;
-      const copy = await duplicateNotebookDeep(nb, nb.parentId);
-      renderSidebar();
-      alert(`Created "${copy.name}". Your original is untouched.`);
-      refreshOpenBookIfNeeded(); if(typeof refreshMasterBook==='function') refreshMasterBook();
-    }
-    return;
-  }
-});
-
-/* ===================== Modal plumbing ===================== */
-function openModal(id){ document.getElementById(id).classList.add('show'); }
-function closeModal(id){ document.getElementById(id).classList.remove('show'); }
-document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',(e)=>e.target.closest('.modal-overlay').classList.remove('show')));
-document.querySelectorAll('.modal-overlay').forEach(ov=>ov.addEventListener('click',(e)=>{ if(e.target===ov) ov.classList.remove('show'); }));
-document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') document.querySelectorAll('.modal-overlay.show').forEach(m=>m.classList.remove('show')); });
-
-/* ===================== Theme ===================== */
-function updateThemeButtons(){
-  const t=document.documentElement.getAttribute('data-theme');
-  document.getElementById('themeDark').classList.toggle('active', t==='dark');
-  document.getElementById('themeLight').classList.toggle('active', t==='light');
-}
-document.getElementById('themeDark').addEventListener('click', ()=>{ document.documentElement.setAttribute('data-theme','dark'); localStorage.setItem('ledger_theme','dark'); updateThemeButtons(); });
-document.getElementById('themeLight').addEventListener('click', ()=>{ document.documentElement.setAttribute('data-theme','light'); localStorage.setItem('ledger_theme','light'); updateThemeButtons(); });
-
-boot();
-})();
-</script>
-</body>
-</html>
