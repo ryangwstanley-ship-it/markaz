@@ -398,6 +398,22 @@ async function boot(){
   await migrateOldDatabases();
   await cleanupLegacyCategorisedNotebooks();
 
+  /* Defensive normalization — old records from earlier versions of this app may be missing
+     fields the current code expects. Never crash on legacy data; just fill in sane defaults. */
+  for(const nb of notebooks){
+    if(nb.nextNumber===undefined) nb.nextNumber = 1;
+    if(nb.parentId===undefined) nb.parentId = null;
+    if(!nb.color) nb.color = PALETTE[0];
+  }
+  for(const b of benefits){
+    if(b.trashed===undefined) b.trashed = false;
+    if(b.order===undefined) b.order = 0;
+    if(!Array.isArray(b.highlights)) b.highlights = [];
+  }
+  for(const p of placements){
+    if(p.number===undefined) p.number = 1;
+  }
+
   if(topLevelNotebooks().length===0){
     for(const name of ["Aqeedah","Fiqh","Usul","Miscellaneous"]){
       const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, nextNumber:1, createdAt:Date.now()};
@@ -1721,15 +1737,4 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
 document.getElementById('fullResetBtn').addEventListener('click', async ()=>{
   const typed = prompt(`This permanently deletes every benefit, notebook, and placement — everything, with no recovery. Type DELETE to confirm.`);
   if(typed !== 'DELETE'){ if(typed!==null) alert("Didn't match — nothing was deleted."); return; }
-  for(const p of placements) await idbDelete('placements', p.id);
-  for(const b of benefits) await idbDelete('benefits', b.id);
-  for(const nb of notebooks) await idbDelete('notebooks', nb.id);
-  placements = []; benefits = []; notebooks = [];
-  for(const name of ["Aqeedah","Fiqh","Usul","Miscellaneous"]){
-    const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, nextNumber:1, createdAt:Date.now()};
-    notebooks.push(nb); await idbPut('notebooks',nb);
-  }
-  skippedIds.clear(); undoStack=[];
-  closeModal('modalData');
-  switchView({type:'import'});
-  alert("Everything has been reset.");
+  for(c
