@@ -171,6 +171,8 @@
     <div class="nav-item" data-nav="masterbook">📘 Master Book</div>
     <div class="nav-item" data-nav="import">📥 Import Text</div>
     <div class="nav-item" data-nav="triage">🏷 Triage: New Benefits<span class="badge" id="pendingBadge">0</span></div>
+    <div class="nav-item" data-nav="importCards">🗂 Import Flashcards</div>
+    <div class="nav-item" data-nav="triageCards">🗃 Triage: Flashcards<span class="badge" id="pendingCardsBadge">0</span></div>
     <div class="nav-item" data-nav="all">📚 All Benefits</div>
     <div class="nav-item" data-nav="trash">🗑 Trash</div>
 
@@ -351,6 +353,7 @@ let benefits=[], notebooks=[], placements=[];
 let view = {type:'import'};
 let skippedIds = new Set();      // scope-prefixed benefit ids ("scopeKey::benefitId"), session only
 let pendingLimit=40, notebookLimit=100, allBenefitsLimit=60, headingPendingLimit=40;
+let cardBatchSize = 20;
 let pagesPerChunk = parseInt(localStorage.getItem('ledger_pages_per_chunk')||'10',10);
 const CHARS_PER_PAGE = 3000;
 const PALETTE=["#d4a24c","#5eb1a3","#c86b5a","#6f9bd1","#a689c9","#8bbf5a","#d17aa8","#7a8fa6"];
@@ -611,9 +614,43 @@ function pendingForTopLevelTriage(){
   const topIds = new Set(topLevelNotebooks().map(n=>n.id));
   return benefits.filter(b=>{
     if(b.trashed) return false;
+    if(b.isFlashcard) return false;
     if(skippedIds.has('top::'+b.id)) return false;
     return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>topIds.has(p.notebookId));
   }).sort((a,b)=>a.order-b.order);
+}
+function pendingFlashcards(){
+  const topIds = new Set(topLevelNotebooks().map(n=>n.id));
+  return benefits.filter(b=>{
+    if(b.trashed) return false;
+    if(!b.isFlashcard) return false;
+    if(skippedIds.has('cards::'+b.id)) return false;
+    return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>topIds.has(p.notebookId));
+  }).sort((a,b)=>a.order-b.order);
+}
+async function getOrCreateFlashcardsArchive(){
+  let arc = notebooks.find(n=>!n.parentId && n.isFlashcardArchive);
+  if(arc) return arc;
+  arc = {id:uid('nb'), name:'Flashcards Archive', color:'#7a8fa6', parentId:null, nextNumber:1, createdAt:Date.now(), excludeFromBook:true, isFlashcardArchive:true};
+  notebooks.push(arc); await idbPut('notebooks', arc);
+  rebuildIndexes();
+  return arc;
+}
+/* ===================== Flashcard splitting: a new card begins at every line starting with "Q:" ===================== */
+function splitFlashcards(text){
+  const lines = text.split(/\r\n|\r|\n/);
+  const cards = [];
+  let current = [];
+  for(const line of lines){
+    if(/^\s*Q\s*:/.test(line)){
+      if(current.length){ const t = current.join('\n').trim(); if(t) cards.push(t); }
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if(current.length){ const t = current.join('\n').trim(); if(t) cards.push(t); }
+  return cards;
 }
 /* benefits placed directly in nb that have NOT yet been placed into any of nb's own children */
 function pendingForChildren(nb){
@@ -641,6 +678,8 @@ function renderSidebar(){
       (nav==='import'&&view.type==='import')||
       (nav==='triage'&&view.type==='triage')||
       (nav==='masterbook'&&view.type==='masterbook')||
+      (nav==='importCards'&&view.type==='importCards')||
+      (nav==='triageCards'&&view.type==='triageCards')||
       (nav==='all'&&view.type==='all')||
       (nav==='trash'&&view.type==='trash')
     );
@@ -648,11 +687,14 @@ function renderSidebar(){
       if(nav==='import') switchView({type:'import'});
       else if(nav==='triage') switchView({type:'triage'});
       else if(nav==='masterbook') switchView({type:'masterbook'});
+      else if(nav==='importCards') switchView({type:'importCards'});
+      else if(nav==='triageCards') switchView({type:'triageCards'});
       else if(nav==='all') switchView({type:'all'});
       else if(nav==='trash') switchView({type:'trash'});
     };
   });
   document.getElementById('pendingBadge').textContent = pendingForTopLevelTriage().length;
+  document.getElementById('pendingCardsBadge').textContent = pendingFlashcards().length;
 
   const wrap = document.getElementById('nbList');
   wrap.innerHTML="";
@@ -744,6 +786,8 @@ function renderView(){
   if(view.type==='import') renderImportView(root, actions);
   else if(view.type==='triage') renderTriageView(root, actions);
   else if(view.type==='masterbook') renderMasterBookView(root, actions);
+  else if(view.type==='importCards') renderImportCardsView(root, actions);
+  else if(view.type==='triageCards') renderTriageCardsView(root, actions);
   else if(view.type==='notebook') renderNotebookView(root, actions, view.id);
   else if(view.type==='all') renderAllBenefitsView(root, actions);
   else if(view.type==='trash') renderTrashView(root, actions);
@@ -823,6 +867,98 @@ function renderImportView(root, actions){
     alert(`Imported ${lines.length} benefits. Now sort them with Triage: New Benefits.`);
     switchView({type:'triage'});
   });
+}
+
+/* ===================== IMPORT FLASHCARDS VIEW ===================== */
+function renderImportCardsView(root, actions){
+  document.getElementById('ctxTitle').textContent="Import Flashcards";
+  document.getElementById('ctxSub').textContent="Each new \"Q:\" line starts a new card — its full Q and A become one benefit";
+  root.innerHTML = `
+    <div class="import-box">
+      <div class="drop-zone" id="dropZoneCards">Drop a flashcard .txt file here, or paste directly into the box below</div>
+      <input type="file" id="fileInputCards" accept=".txt,text/plain" style="display:none;">
+      <textarea id="importTextCards" placeholder="Paste your flashcard deck here — formatted like:&#10;Q: question&#10;A: answer&#10;&#10;Q: next question&#10;A: next answer"></textarea>
+      <div class="import-preview" id="importPreviewCards">0 cards detected</div>
+      <button class="btn btn-primary" id="doImportCardsBtn">Import as Flashcards</button>
+    </div>`;
+  const ta = document.getElementById('importTextCards');
+  const preview = document.getElementById('importPreviewCards');
+  function updatePreview(){
+    const cards = splitFlashcards(ta.value);
+    preview.textContent = cards.length + " card" + (cards.length===1?"":"s") + " detected";
+  }
+  ta.addEventListener('input', updatePreview);
+  document.getElementById('fileInputCards').addEventListener('change',(e)=>{
+    const f=e.target.files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=(ev)=>{ ta.value=ev.target.result; updatePreview(); }; r.readAsText(f);
+  });
+  const dz = document.getElementById('dropZoneCards');
+  dz.addEventListener('click', ()=>document.getElementById('fileInputCards').click());
+  dz.addEventListener('dragover',(e)=>{ e.preventDefault(); dz.style.borderColor='var(--teal)'; });
+  dz.addEventListener('dragleave',()=>{ dz.style.borderColor='var(--line)'; });
+  dz.addEventListener('drop',(e)=>{
+    e.preventDefault(); dz.style.borderColor='var(--line)';
+    const f=e.dataTransfer.files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=(ev)=>{ ta.value=ev.target.result; updatePreview(); }; r.readAsText(f);
+  });
+  document.getElementById('doImportCardsBtn').addEventListener('click', async ()=>{
+    const cards = splitFlashcards(ta.value);
+    if(!cards.length){ alert("Nothing to import — paste your flashcard deck first, formatted with \"Q:\" starting each card."); return; }
+    let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
+    for(const card of cards){
+      const b={id:uid('ben'), text:card, trashed:false, createdAt:Date.now(), order:order++, isFlashcard:true};
+      benefits.push(b); await idbPut('benefits', b);
+    }
+    ta.value=""; updatePreview();
+    alert(`Imported ${cards.length} flashcards. Now sort them with Triage: Flashcards.`);
+    switchView({type:'triageCards'});
+  });
+}
+
+/* ===================== TRIAGE FLASHCARDS VIEW — 20 at a time, leftovers auto-archive on Next ===================== */
+function renderTriageCardsView(root, actions){
+  document.getElementById('ctxTitle').textContent = "Triage: Flashcards";
+  const allPending = pendingFlashcards();
+  document.getElementById('ctxSub').textContent = `${allPending.length} pending · reviewing ${Math.min(cardBatchSize, allPending.length)} at a time`;
+
+  const nbs = topLevelNotebooks().filter(n=>!n.isFlashcardArchive);
+  const batch = allPending.slice(0, cardBatchSize);
+  const batchIds = new Set(batch.map(b=>b.id));
+
+  const sizeLabel = document.createElement('label');
+  sizeLabel.className = 'chk';
+  sizeLabel.style.marginRight = '8px';
+  sizeLabel.innerHTML = `Batch size <input type="text" id="cardBatchSizeInput" style="width:44px; text-align:center; margin-left:6px;" value="${cardBatchSize}">`;
+  actions.appendChild(sizeLabel);
+
+  const nextBtn = document.createElement('button'); nextBtn.className='btn btn-primary btn-sm';
+  const leftoverCount = batch.filter(b=>!skippedIds.has('cards::'+b.id)).length;
+  nextBtn.textContent = leftoverCount>0 ? `Next ${Math.min(cardBatchSize, allPending.length)} → (archives ${leftoverCount} unsorted)` : `Next ${Math.min(cardBatchSize, allPending.length)} →`;
+  nextBtn.disabled = allPending.length===0;
+  nextBtn.addEventListener('click', async ()=>{
+    const archive = await getOrCreateFlashcardsArchive();
+    const stillPending = pendingFlashcards().filter(b=>batchIds.has(b.id) && !skippedIds.has('cards::'+b.id));
+    for(const b of stillPending) await confirmIntoNotebooks(b.id, [archive.id]);
+    renderSidebar(); renderView();
+  });
+  actions.appendChild(nextBtn);
+
+  document.getElementById('cardBatchSizeInput').addEventListener('input', (e)=>{
+    const v = parseInt(e.target.value,10);
+    if(v && v>0){ cardBatchSize = v; renderView(); }
+  });
+
+  root.innerHTML = `<div id="cardsList"></div><div id="cardsSkipHolder"></div>`;
+  const listEl = document.getElementById('cardsList');
+  if(nbs.length===0){
+    listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>No notebooks yet. Add one from the sidebar first.</div></div>`;
+  } else if(batch.length===0){
+    listEl.innerHTML = `<div class="empty"><div class="big">✓</div><div>${allPending.length===0?"No flashcards pending — import a deck first.":"Nothing pending right now."}</div></div>`;
+  } else {
+    batch.forEach((b,idx)=>listEl.appendChild(renderTriageRow(b, nbs, 'cards', idx===0, (name)=>findOrCreateChildNotebook(null,name))));
+  }
+  const skipHolder = document.getElementById('cardsSkipHolder');
+  renderSkippedBlock(skipHolder, 'cards', ()=>{ renderSidebar(); renderView(); });
 }
 
 /* ===================== Skipped list widget (shared) ===================== */
@@ -1376,6 +1512,7 @@ let mbSearchMatches = [], mbMatchIdx = -1, mbSearchQuery = '';
 function buildMasterBookLines(){
   let lines = [];
   topLevelNotebooks().forEach(nb=>{
+    if(nb.excludeFromBook) return;
     if(placementsForNotebook(nb.id).length===0) return;
     lines.push({kind:'part', text:nb.name, nbId:nb.id});
     lines = lines.concat(buildFullBookLines(nb, 0, []));
@@ -1395,7 +1532,7 @@ function renderMasterBookView(root, actions){
   document.getElementById('ctxTitle').textContent = "Master Book";
   computeMasterPages();
   const totalBenefits = mbAllLines.filter(l=>l.kind==='para').length;
-  document.getElementById('ctxSub').textContent = `${totalBenefits} benefit(s) · ${mbPages.length} page(s) · ${topLevelNotebooks().filter(n=>placementsForNotebook(n.id).length>0).length} book(s) combined`;
+  document.getElementById('ctxSub').textContent = `${totalBenefits} benefit(s) · ${mbPages.length} page(s) · ${topLevelNotebooks().filter(n=>!n.excludeFromBook && placementsForNotebook(n.id).length>0).length} book(s) combined`;
 
   const pageNavHtml = (idPrefix)=>`
     <div class="triage-toolbar" style="justify-content:center;">
@@ -1420,7 +1557,7 @@ function renderMasterBookView(root, actions){
       <button class="btn btn-ghost btn-sm" id="mbExportAll">⬇ Export whole book (.txt)</button>
       <button class="btn btn-ghost btn-sm" id="mbPrintBtn">🖨 Print / Save as PDF</button>
     </div>
-    <details class="collapsible" id="mbTocDet"><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>placementsForNotebook(n.id).length>0).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
+    <details class="collapsible" id="mbTocDet"><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>!n.excludeFromBook && placementsForNotebook(n.id).length>0).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
     ${mbEditMode?'<div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">✏ Edit mode is on — select text and hit Highlight, edit text, reorder headings/benefits with ▲▼, delete headings, or duplicate a book. ★ favourite and + note stay available all the time. Changes save straight to the shared benefit, so every notebook that includes it updates automatically.</div>':''}
     ${pageNavHtml('mbTop')}
     <div class="read-doc" id="mbPageContent" style="min-height:300px;"></div>
@@ -1446,7 +1583,7 @@ function renderMasterBookView(root, actions){
   document.getElementById('mbEditToggle').addEventListener('click', ()=>{ mbEditMode=!mbEditMode; renderView(); });
 
   document.getElementById('mbDuplicateAll').addEventListener('click', async ()=>{
-    const nonEmpty = topLevelNotebooks().filter(n=>placementsForNotebook(n.id).length>0);
+    const nonEmpty = topLevelNotebooks().filter(n=>!n.excludeFromBook && placementsForNotebook(n.id).length>0);
     if(nonEmpty.length===0){ alert("Nothing to duplicate yet."); return; }
     if(!confirm(`Duplicate all ${nonEmpty.length} book(s) with fully independent copies of every benefit, so you can experiment safely? This can take a moment for large libraries.`)) return;
     const btn = document.getElementById('mbDuplicateAll'); btn.textContent='⏳ duplicating…'; btn.disabled=true;
@@ -1458,6 +1595,7 @@ function renderMasterBookView(root, actions){
   document.getElementById('mbExportAll').addEventListener('click', ()=>{
     let txt = '';
     topLevelNotebooks().forEach(nb=>{
+      if(nb.excludeFromBook) return;
       if(placementsForNotebook(nb.id).length===0) return;
       txt += `${nb.name}\n${'='.repeat(nb.name.length)}\n\n`;
       txt += buildFullBookLines(nb,0,[]).map(lineToPlainText).join('');
@@ -1499,6 +1637,7 @@ function renderMbToc(){
   });
   function renderLevel(parentId, depth){
     (parentId===null ? topLevelNotebooks() : childrenOf(parentId)).forEach(nb=>{
+      if(nb.excludeFromBook) return;
       if(placementsForNotebook(nb.id).length===0) return;
       const row = document.createElement('div');
       row.style.marginLeft = (depth*14)+'px';
@@ -1609,7 +1748,7 @@ function renderAllBenefitsView(root, actions){
     </div><div id="allList"></div><div class="load-more-row" id="allLoadMore"></div>`;
   const search = document.getElementById('allSearch');
   const favOnly = document.getElementById('favOnly');
-  function draw(){
+    function draw(){
     const q=search.value.trim();
     let filtered = q ? active.filter(b=>matchesQuery(b.text,q)) : active;
     if(favOnly.checked) filtered = filtered.filter(b=>b.favorite);
@@ -1750,7 +1889,6 @@ document.getElementById('fullResetBtn').addEventListener('click', async ()=>{
   switchView({type:'import'});
   alert("Everything has been reset.");
 });
-
 
 /* ===================== Add benefit to more headings — also lets you remove it from ones it's already in ===================== */
 let ahBenefitId = null;
@@ -1908,7 +2046,7 @@ document.addEventListener('click', async (e)=>{
     return;
   }
 });
-  
+
 /* ===================== Modal plumbing ===================== */
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
