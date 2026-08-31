@@ -1751,6 +1751,164 @@ document.getElementById('fullResetBtn').addEventListener('click', async ()=>{
   alert("Everything has been reset.");
 });
 
+
+/* ===================== Add benefit to more headings — also lets you remove it from ones it's already in ===================== */
+let ahBenefitId = null;
+function openAddHeadingsModal(benefitId){
+  ahBenefitId = benefitId;
+  const b = benefitById(benefitId);
+  document.getElementById('ahBenefitPreview').textContent = b ? (b.text.length>140 ? b.text.slice(0,140)+'…' : b.text) : '';
+  document.getElementById('ahSearch').value = '';
+  renderAhTree('');
+  openModal('modalAddHeadings');
+}
+document.getElementById('ahSearch').addEventListener('input',(e)=>renderAhTree(e.target.value));
+function renderAhTree(query){
+  const wrap = document.getElementById('ahTree');
+  wrap.innerHTML='';
+  const already = new Set((placementsForBenefit(ahBenefitId)||[]).map(p=>p.notebookId));
+  const q = query.trim();
+  if(q){
+    const matches = notebooks.filter(n=>matchesQuery(n.name,q));
+    if(matches.length===0){ wrap.innerHTML='<div class="hint">No matches.</div>'; return; }
+    matches.forEach(nb=>wrap.appendChild(renderAhRow(nb, 0, already)));
+    return;
+  }
+  function renderLevel(parentId, depth){
+    (parentId===null ? topLevelNotebooks() : childrenOf(parentId)).forEach(nb=>{
+      wrap.appendChild(renderAhRow(nb, depth, already));
+      renderLevel(nb.id, depth+1);
+    });
+  }
+  renderLevel(null, 0);
+}
+function renderAhRow(nb, depth, alreadySet){
+  const row = document.createElement('div');
+  row.className = 'nb-item';
+  row.style.marginLeft = (depth*14)+'px';
+  const isAlready = alreadySet.has(nb.id);
+  row.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${escapeHtml(nb.name)}</span>${isAlready?'<span class="nb-count">✓ here</span><button class="icon-btn danger" data-role="ahremove" title="Remove from this heading">✕ remove</button>':''}`;
+  if(isAlready){
+    row.style.opacity='0.85';
+    row.querySelector('[data-role="ahremove"]').addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if(!confirm(`Remove this benefit from "${nb.name}"? It stays everywhere else it's placed.`)) return;
+      const plc = (placementsForBenefit(ahBenefitId)||[]).find(p=>p.notebookId===nb.id);
+      if(plc){ await idbDelete('placements', plc.id); placements = placements.filter(x=>x.id!==plc.id); }
+      renderSidebar();
+      renderAhTree(document.getElementById('ahSearch').value);
+      refreshOpenBookIfNeeded();
+    });
+  } else {
+    row.style.cursor='pointer';
+    row.addEventListener('click', async ()=>{
+      const created = await confirmIntoNotebooks(ahBenefitId, [nb.id]);
+      pushUndo(`added a benefit → ${nb.name}`, ()=>undoPlacements(created));
+      renderSidebar();
+      renderAhTree(document.getElementById('ahSearch').value);
+      refreshOpenBookIfNeeded();
+    });
+  }
+  return row;
+}
+/* ===================== Shared inline text editor (used by book/master-book paragraphs) ===================== */
+function afterMutation(){
+  renderSidebar();
+  refreshOpenBookIfNeeded();
+  renderView();
+}
+function editBenefitInline(benefitId, pEl){
+  const b = benefitById(benefitId);
+  if(!b) return;
+  const span = pEl.querySelector('[data-role="ptext"]');
+  const orig = span.innerHTML;
+  span.outerHTML = `<span data-role="ptext"><textarea style="width:100%; min-height:60px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:6px; font-size:13.5px;">${escapeHtml(b.text)}</textarea><div style="margin-top:4px;"><button class="btn btn-primary btn-sm" data-role="save-inline">Save</button> <button class="btn btn-ghost btn-sm" data-role="cancel-inline">Cancel</button></div></span>`;
+  pEl.querySelector('[data-role="save-inline"]').addEventListener('click', async ()=>{
+    b.text = pEl.querySelector('textarea').value;
+    await idbPut('benefits', b);
+    afterMutation();
+  });
+  pEl.querySelector('[data-role="cancel-inline"]').addEventListener('click', ()=>{
+    pEl.querySelector('[data-role="ptext"]').outerHTML = `<span data-role="ptext">${orig}</span>`;
+  });
+}
+
+document.addEventListener('click', async (e)=>{
+  const addBtn = e.target.closest('[data-action="addhead"]');
+  if(addBtn){ openAddHeadingsModal(addBtn.dataset.benefit); return; }
+
+  const hlSelectBtn = e.target.closest('[data-action="hl-select"]');
+  if(hlSelectBtn){
+    const pEl = hlSelectBtn.closest('p');
+    const textEl = pEl ? pEl.querySelector('[data-role="ptext"]') : null;
+    const offsets = textEl ? getSelectionOffsetsWithin(textEl) : null;
+    if(!offsets){ alert("Select some text inside the benefit first, then click Highlight."); return; }
+    const b = benefitById(hlSelectBtn.dataset.benefit);
+    if(b){ b.highlights = b.highlights || []; b.highlights.push(offsets); await idbPut('benefits', b); afterMutation(); }
+    return;
+  }
+  const hlClearBtn = e.target.closest('[data-action="hl-clear"]');
+  if(hlClearBtn){
+    const b = benefitById(hlClearBtn.dataset.benefit);
+    if(b){ b.highlights = []; await idbPut('benefits', b); afterMutation(); }
+    return;
+  }
+  const favBtn = e.target.closest('[data-action="fav-benefit"]');
+  if(favBtn){
+    const b = benefitById(favBtn.dataset.benefit);
+    if(b){ b.favorite = !b.favorite; await idbPut('benefits', b); afterMutation(); }
+    return;
+  }
+  const annBtn = e.target.closest('[data-action="annotate-benefit"]');
+  if(annBtn){
+    const b = benefitById(annBtn.dataset.benefit);
+    if(b){
+      const val = prompt("Annotation for this benefit (shown as \"note: ...\" — leave empty to remove):", b.annotation||"");
+      if(val!==null){ b.annotation = val.trim(); await idbPut('benefits', b); afterMutation(); }
+    }
+    return;
+  }
+  const editBtn = e.target.closest('[data-action="edit-benefit"]');
+  if(editBtn){ editBenefitInline(editBtn.dataset.benefit, editBtn.closest('p')); return; }
+
+  const moveUp = e.target.closest('[data-action="move-p-up"]');
+  const moveDown = e.target.closest('[data-action="move-p-down"]');
+  if(moveUp||moveDown){
+    const btn = moveUp||moveDown;
+    await movePlacementSibling(btn.dataset.notebook, btn.dataset.placement, moveUp?-1:1);
+    afterMutation();
+    return;
+  }
+  const moveHUp = e.target.closest('[data-action="move-h-up"]');
+  const moveHDown = e.target.closest('[data-action="move-h-down"]');
+  if(moveHUp||moveHDown){
+    const btn = moveHUp||moveHDown;
+    const nb = nbById(btn.dataset.notebook);
+    if(nb){ await moveNotebookSibling(nb, moveHUp?-1:1); afterMutation(); }
+    return;
+  }
+  const delHeading = e.target.closest('[data-action="del-heading"]');
+  if(delHeading){
+    const nb = nbById(delHeading.dataset.notebook);
+    if(nb && confirm(`Delete heading "${nb.name}" and everything nested under it? Benefits are kept — only placements here are removed.`)){
+      await deleteNotebookAndDescendants(nb.id);
+      afterMutation();
+    }
+    return;
+  }
+  const dupBtn = e.target.closest('[data-action="dup-notebook"]');
+  if(dupBtn){
+    const nb = nbById(dupBtn.dataset.notebook);
+    if(nb && confirm(`Duplicate "${nb.name}" and everything nested inside it, with fully independent copies of every benefit? Safe to experiment on afterwards.`)){
+      dupBtn.textContent = '⏳ duplicating…'; dupBtn.disabled = true;
+      const copy = await duplicateNotebookDeep(nb, nb.parentId);
+      alert(`Created "${copy.name}". Your original is untouched.`);
+      afterMutation();
+    }
+    return;
+  }
+});
+  
 /* ===================== Modal plumbing ===================== */
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
