@@ -652,6 +652,66 @@ function splitFlashcards(text){
   if(current.length){ const t = current.join('\n').trim(); if(t) cards.push(t); }
   return cards;
 }
+
+/* ===================== Anki-style tab-separated export (#separator:tab, #html:true, question<TAB>answer per line) ===================== */
+function parseDelimited(text, delimiter){
+  const rows = [];
+  let row = [], field = '', inQuotes = false, i = 0;
+  const len = text.length;
+  while(i < len){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    } else {
+      if(c === '"'){ inQuotes = true; i++; continue; }
+      if(c === delimiter){ row.push(field); field=''; i++; continue; }
+      if(c === '\r'){ i++; continue; }
+      if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; i++; continue; }
+      field += c; i++; continue;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+function stripHtmlToText(s){
+  return (s||'')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(div|p)>/gi, '\n')
+    .replace(/<[^>]+>/g,'')
+    .replace(/&nbsp;/gi,' ')
+    .replace(/&amp;/gi,'&')
+    .replace(/&lt;/gi,'<')
+    .replace(/&gt;/gi,'>')
+    .replace(/&quot;/gi,'"')
+    .replace(/&#39;/gi,"'")
+    .replace(/\n{3,}/g,'\n\n')
+    .trim();
+}
+function splitAnkiTsv(text){
+  const lines = text.split(/\r\n|\r|\n/).filter(l=>!l.trim().startsWith('#'));
+  const rows = parseDelimited(lines.join('\n'), '\t');
+  const cards = [];
+  rows.forEach(row=>{
+    if(row.length < 2) return;
+    const q = stripHtmlToText(row[0]);
+    const a = stripHtmlToText(row[1]);
+    if(!q && !a) return;
+    let t = '';
+    if(q) t += 'Q: ' + q;
+    if(a) t += (t?'\n':'') + 'A: ' + a;
+    if(t.trim()) cards.push(t.trim());
+  });
+  return cards;
+}
+/* Auto-detects which format was pasted — Anki tab-separated export, or plain "Q:" text — and splits accordingly */
+function detectAndSplitCards(text){
+  const looksLikeTsv = /^#separator:tab/mi.test(text) || text.split(/\r\n|\r|\n/).some(l=>l.includes('\t'));
+  return looksLikeTsv ? splitAnkiTsv(text) : splitFlashcards(text);
+}
 /* benefits placed directly in nb that have NOT yet been placed into any of nb's own children */
 function pendingForChildren(nb){
   const childIds = new Set(childrenOf(nb.id).map(c=>c.id));
@@ -872,19 +932,19 @@ function renderImportView(root, actions){
 /* ===================== IMPORT FLASHCARDS VIEW ===================== */
 function renderImportCardsView(root, actions){
   document.getElementById('ctxTitle').textContent="Import Flashcards";
-  document.getElementById('ctxSub').textContent="Each new \"Q:\" line starts a new card — its full Q and A become one benefit";
+  document.getElementById('ctxSub').textContent="Understands \"Q:\" text decks AND Anki tab-separated exports — auto-detected, question+answer become one benefit";
   root.innerHTML = `
     <div class="import-box">
       <div class="drop-zone" id="dropZoneCards">Drop a flashcard .txt file here, or paste directly into the box below</div>
       <input type="file" id="fileInputCards" accept=".txt,text/plain" style="display:none;">
-      <textarea id="importTextCards" placeholder="Paste your flashcard deck here — formatted like:&#10;Q: question&#10;A: answer&#10;&#10;Q: next question&#10;A: next answer"></textarea>
+      <textarea id="importTextCards" placeholder="Paste a flashcard deck here. Either format works, auto-detected:&#10;Q: question&#10;A: answer&#10;&#10;...or an Anki tab-separated export (#separator:tab, question and answer separated by a tab)."></textarea>
       <div class="import-preview" id="importPreviewCards">0 cards detected</div>
       <button class="btn btn-primary" id="doImportCardsBtn">Import as Flashcards</button>
     </div>`;
   const ta = document.getElementById('importTextCards');
   const preview = document.getElementById('importPreviewCards');
   function updatePreview(){
-    const cards = splitFlashcards(ta.value);
+    const cards = detectAndSplitCards(ta.value);
     preview.textContent = cards.length + " card" + (cards.length===1?"":"s") + " detected";
   }
   ta.addEventListener('input', updatePreview);
@@ -902,8 +962,8 @@ function renderImportCardsView(root, actions){
     const r=new FileReader(); r.onload=(ev)=>{ ta.value=ev.target.result; updatePreview(); }; r.readAsText(f);
   });
   document.getElementById('doImportCardsBtn').addEventListener('click', async ()=>{
-    const cards = splitFlashcards(ta.value);
-    if(!cards.length){ alert("Nothing to import — paste your flashcard deck first, formatted with \"Q:\" starting each card."); return; }
+    const cards = detectAndSplitCards(ta.value);
+    if(!cards.length){ alert("Nothing to import — paste a flashcard deck first (either \"Q:\" text or an Anki tab-separated export)."); return; }
     let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
     for(const card of cards){
       const b={id:uid('ben'), text:card, trashed:false, createdAt:Date.now(), order:order++, isFlashcard:true};
@@ -948,7 +1008,33 @@ function renderTriageCardsView(root, actions){
     if(v && v>0){ cardBatchSize = v; renderView(); }
   });
 
-  root.innerHTML = `<div id="cardsList"></div><div id="cardsSkipHolder"></div>`;
+  root.innerHTML = `
+    <div class="mini-row" style="margin-bottom:12px;">
+      <span class="grow">Put everything into one category instead of reviewing card by card:</span>
+      <select id="bulkCardNb" style="min-width:150px;"></select>
+      <button class="btn btn-primary btn-sm" id="bulkCardBatchBtn">This batch (${batch.length})</button>
+      <button class="btn btn-danger btn-sm" id="bulkCardAllBtn">ALL pending (${allPending.length})</button>
+    </div>
+    <div id="cardsList"></div><div id="cardsSkipHolder"></div>`;
+
+  const bulkSelect = document.getElementById('bulkCardNb');
+  bulkSelect.innerHTML = nbs.map(n=>`<option value="${n.id}">${escapeHtml(n.name)}</option>`).join('') || '<option value="">No notebooks yet</option>';
+  document.getElementById('bulkCardBatchBtn').addEventListener('click', async ()=>{
+    const nbId = bulkSelect.value; if(!nbId) return;
+    const nb = nbById(nbId);
+    if(!confirm(`Send all ${batch.length} cards in this batch to "${nb.name}"?`)) return;
+    for(const b of batch) await confirmIntoNotebooks(b.id, [nbId]);
+    renderSidebar(); renderView();
+  });
+  document.getElementById('bulkCardAllBtn').addEventListener('click', async ()=>{
+    const nbId = bulkSelect.value; if(!nbId) return;
+    const nb = nbById(nbId);
+    if(!confirm(`Send ALL ${allPending.length} pending flashcards to "${nb.name}"? This can take a moment for a large deck.`)) return;
+    const targets = pendingFlashcards();
+    for(const b of targets) await confirmIntoNotebooks(b.id, [nbId]);
+    renderSidebar(); renderView();
+  });
+
   const listEl = document.getElementById('cardsList');
   if(nbs.length===0){
     listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>No notebooks yet. Add one from the sidebar first.</div></div>`;
@@ -1748,7 +1834,7 @@ function renderAllBenefitsView(root, actions){
     </div><div id="allList"></div><div class="load-more-row" id="allLoadMore"></div>`;
   const search = document.getElementById('allSearch');
   const favOnly = document.getElementById('favOnly');
-    function draw(){
+  function draw(){
     const q=search.value.trim();
     let filtered = q ? active.filter(b=>matchesQuery(b.text,q)) : active;
     if(favOnly.checked) filtered = filtered.filter(b=>b.favorite);
