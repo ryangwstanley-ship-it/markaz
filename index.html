@@ -116,11 +116,12 @@
   .empty .big{font-size:28px; margin-bottom:8px;}
   .load-more-row{display:flex; justify-content:center; margin-top:10px;}
 
-  .placement-row{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; display:flex; gap:12px; align-items:flex-start; margin-bottom:8px;}
+  .placement-row{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; display:flex; flex-wrap:wrap; gap:8px 12px; align-items:flex-start; margin-bottom:8px;}
   .placement-num{font-family:var(--mono); color:var(--amber); font-size:12px; min-width:34px; padding-top:2px;}
-  .placement-body{flex:1; font-size:13.5px; line-height:1.6; white-space:pre-wrap; word-break:break-word;}
+  .placement-body{flex:1 1 200px; min-width:200px; font-size:13.5px; line-height:1.6; white-space:pre-wrap; word-break:break-word;}
   .placement-body textarea{width:100%; min-height:70px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:8px; font-size:13.5px;}
-  .placement-actions{display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; max-width:260px;}
+  .placement-actions{display:flex; gap:4px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; width:100%; order:3;}
+  @media (min-width:640px){ .placement-actions{width:auto; order:0; max-width:260px;} }
   .read-doc mark{background:var(--amber); color:#1a1408; padding:0 2px; border-radius:2px;}
   .organised-chip{display:inline-block; font-size:10px; font-family:var(--mono); background:var(--bg-raised); color:var(--teal); padding:2px 7px; border-radius:8px; margin-top:5px;}
 
@@ -166,7 +167,7 @@
 
 <div class="shell">
   <aside class="sidebar" id="sidebar">
-    <div class="brand"><span class="mark">§</span><h1>Ledger</h1></div>
+    <div class="brand"><span class="mark">§</span><h1>Ledger</h1><button id="sidebarCloseBtn" class="menu-btn" style="margin-left:auto;">✕</button></div>
 
     <div class="nav-item" data-nav="masterbook">📘 Master Book</div>
     <div class="nav-item" data-nav="import">📥 Import Text</div>
@@ -174,6 +175,7 @@
     <div class="nav-item" data-nav="importCards">🗂 Import Flashcards</div>
     <div class="nav-item" data-nav="triageCards">🗃 Triage: Flashcards<span class="badge" id="pendingCardsBadge">0</span></div>
     <div class="nav-item" data-nav="all">📚 All Benefits</div>
+    <div class="nav-item" data-nav="skipped">⏭ Skipped<span class="badge" id="skippedBadge">0</span></div>
     <div class="nav-item" data-nav="trash">🗑 Trash</div>
 
     <div class="side-label">Notebooks<button id="addNbBtn">+</button></div>
@@ -351,7 +353,31 @@ async function cleanupLegacyCategorisedNotebooks(){
 /* ===================== State ===================== */
 let benefits=[], notebooks=[], placements=[];
 let view = {type:'import'};
-let skippedIds = new Set();      // scope-prefixed benefit ids ("scopeKey::benefitId"), session only
+/* Skips now persist on the benefit itself (b.skippedScopes: string[]) so they survive reloads
+   and can be reviewed later from the global Skipped tab, instead of being lost on refresh. */
+function isSkipped(b, scopeKey){ return !!(b && b.skippedScopes && b.skippedScopes.includes(scopeKey)); }
+async function addSkip(b, scopeKey){
+  if(!b) return;
+  if(!Array.isArray(b.skippedScopes)) b.skippedScopes = [];
+  if(!b.skippedScopes.includes(scopeKey)){ b.skippedScopes.push(scopeKey); await idbPut('benefits', b); }
+}
+async function removeSkip(b, scopeKey){
+  if(!b || !Array.isArray(b.skippedScopes)) return;
+  const idx = b.skippedScopes.indexOf(scopeKey);
+  if(idx>=0){ b.skippedScopes.splice(idx,1); await idbPut('benefits', b); }
+}
+function scopeLabel(scopeKey){
+  if(scopeKey==='top') return 'New Benefits triage';
+  if(scopeKey==='cards') return 'Flashcards triage';
+  if(scopeKey.startsWith('hd::')){
+    const nb = nbById(scopeKey.slice(4));
+    return nb ? `"${nb.name}" headings` : 'a deleted notebook\'s headings';
+  }
+  return scopeKey;
+}
+function allSkippedBenefits(){
+  return benefits.filter(b=>!b.trashed && Array.isArray(b.skippedScopes) && b.skippedScopes.length>0);
+}
 let pendingLimit=40, notebookLimit=100, allBenefitsLimit=60, headingPendingLimit=40;
 let cardBatchSize = 20;
 let pagesPerChunk = parseInt(localStorage.getItem('ledger_pages_per_chunk')||'10',10);
@@ -615,7 +641,7 @@ function pendingForTopLevelTriage(){
   return benefits.filter(b=>{
     if(b.trashed) return false;
     if(b.isFlashcard) return false;
-    if(skippedIds.has('top::'+b.id)) return false;
+    if(isSkipped(b,'top')) return false;
     return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>topIds.has(p.notebookId));
   }).sort((a,b)=>a.order-b.order);
 }
@@ -624,7 +650,7 @@ function pendingFlashcards(){
   return benefits.filter(b=>{
     if(b.trashed) return false;
     if(!b.isFlashcard) return false;
-    if(skippedIds.has('cards::'+b.id)) return false;
+    if(isSkipped(b,'cards')) return false;
     return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>topIds.has(p.notebookId));
   }).sort((a,b)=>a.order-b.order);
 }
@@ -719,14 +745,13 @@ function pendingForChildren(nb){
   const uniqueBenIds = [...new Set(placedInNb.map(p=>p.benefitId))];
   return uniqueBenIds.map(benefitById).filter(b=>{
     if(!b || b.trashed) return false;
-    if(skippedIds.has('hd::'+nb.id+'::'+b.id)) return false;
+    if(isSkipped(b,'hd::'+nb.id)) return false;
     if(childIds.size===0) return true;
     return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>childIds.has(p.notebookId));
   });
 }
 function skippedBenefitsForScope(scopeKey){
-  const prefix = scopeKey+'::';
-  return [...skippedIds].filter(k=>k.startsWith(prefix)).map(k=>benefitById(k.slice(prefix.length))).filter(Boolean);
+  return benefits.filter(b=>!b.trashed && isSkipped(b, scopeKey));
 }
 
 /* ===================== Sidebar ===================== */
@@ -741,6 +766,7 @@ function renderSidebar(){
       (nav==='importCards'&&view.type==='importCards')||
       (nav==='triageCards'&&view.type==='triageCards')||
       (nav==='all'&&view.type==='all')||
+      (nav==='skipped'&&view.type==='skipped')||
       (nav==='trash'&&view.type==='trash')
     );
     el.onclick = ()=>{
@@ -750,11 +776,13 @@ function renderSidebar(){
       else if(nav==='importCards') switchView({type:'importCards'});
       else if(nav==='triageCards') switchView({type:'triageCards'});
       else if(nav==='all') switchView({type:'all'});
+      else if(nav==='skipped') switchView({type:'skipped'});
       else if(nav==='trash') switchView({type:'trash'});
     };
   });
   document.getElementById('pendingBadge').textContent = pendingForTopLevelTriage().length;
   document.getElementById('pendingCardsBadge').textContent = pendingFlashcards().length;
+  document.getElementById('skippedBadge').textContent = allSkippedBenefits().length;
 
   const wrap = document.getElementById('nbList');
   wrap.innerHTML="";
@@ -806,6 +834,7 @@ async function deleteNotebookAndDescendants(nbId){
 }
 
 document.getElementById('menuBtn').addEventListener('click', ()=>document.getElementById('sidebar').classList.toggle('open'));
+document.getElementById('sidebarCloseBtn').addEventListener('click', ()=>document.getElementById('sidebar').classList.remove('open'));
 
 const swatchWrap=document.getElementById('nbColorSwatches');
 let pickedColor=PALETTE[0];
@@ -852,6 +881,7 @@ function renderView(){
   else if(view.type==='triageCards') renderTriageCardsView(root, actions);
   else if(view.type==='notebook') renderNotebookView(root, actions, view.id);
   else if(view.type==='all') renderAllBenefitsView(root, actions);
+  else if(view.type==='skipped') renderGlobalSkippedView(root, actions);
   else if(view.type==='trash') renderTrashView(root, actions);
   window.scrollTo(0, scrollY);
 }
@@ -994,12 +1024,12 @@ function renderTriageCardsView(root, actions){
   actions.appendChild(sizeLabel);
 
   const nextBtn = document.createElement('button'); nextBtn.className='btn btn-primary btn-sm';
-  const leftoverCount = batch.filter(b=>!skippedIds.has('cards::'+b.id)).length;
+  const leftoverCount = batch.filter(b=>!isSkipped(b,'cards')).length;
   nextBtn.textContent = leftoverCount>0 ? `Next ${Math.min(cardBatchSize, allPending.length)} → (archives ${leftoverCount} unsorted)` : `Next ${Math.min(cardBatchSize, allPending.length)} →`;
   nextBtn.disabled = allPending.length===0;
   nextBtn.addEventListener('click', async ()=>{
     const archive = await getOrCreateFlashcardsArchive();
-    const stillPending = pendingFlashcards().filter(b=>batchIds.has(b.id) && !skippedIds.has('cards::'+b.id));
+    const stillPending = pendingFlashcards().filter(b=>batchIds.has(b.id) && !isSkipped(b,'cards'));
     for(const b of stillPending) await confirmIntoNotebooks(b.id, [archive.id]);
     renderSidebar(); renderView();
   });
@@ -1017,7 +1047,12 @@ function renderTriageCardsView(root, actions){
       <button class="btn btn-primary btn-sm" id="bulkCardBatchBtn">This batch (${batch.length})</button>
       <button class="btn btn-danger btn-sm" id="bulkCardAllBtn">ALL pending (${allPending.length})</button>
     </div>
+    <div id="cardsRangeHolder"></div>
     <div id="cardsList"></div><div id="cardsSkipHolder"></div>`;
+
+  if(batch.length>0 && nbs.length>0){
+    renderPositionRangeBar(document.getElementById('cardsRangeHolder'), batch, {key:'cards', targets:nbs, afterAction:()=>{ renderSidebar(); renderView(); }});
+  }
 
   const bulkSelect = document.getElementById('bulkCardNb');
   bulkSelect.innerHTML = nbs.map(n=>`<option value="${n.id}">${escapeHtml(n.name)}</option>`).join('') || '<option value="">No notebooks yet</option>';
@@ -1050,6 +1085,49 @@ function renderTriageCardsView(root, actions){
 }
 
 /* ===================== Skipped list widget (shared) ===================== */
+/* ===================== Shared "select rows X to Y" bulk bar — works on any ordered list of benefits ===================== */
+function renderPositionRangeBar(container, items, opts){
+  const bar = document.createElement('div'); bar.className='mini-row'; bar.style.cssText += 'flex-wrap:wrap; gap:8px; margin-bottom:10px;';
+  bar.innerHTML = `<span>Select rows #<input type="text" id="posFrom_${opts.key}" style="width:50px; text-align:center;"> to #<input type="text" id="posTo_${opts.key}" style="width:50px; text-align:center;"> (of ${items.length} shown)</span>`;
+  function getSlice(){
+    const from = parseInt(document.getElementById('posFrom_'+opts.key).value,10);
+    const to = parseInt(document.getElementById('posTo_'+opts.key).value,10);
+    if(!from || !to) return null;
+    const lo = Math.max(1,Math.min(from,to))-1, hi = Math.min(items.length,Math.max(from,to))-1;
+    return items.slice(lo, hi+1);
+  }
+  if(opts.targets && opts.targets.length){
+    const sel = document.createElement('select'); sel.id='posCatSel_'+opts.key; sel.style.minWidth='130px';
+    sel.innerHTML = opts.targets.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+    bar.appendChild(sel);
+    const catBtn = document.createElement('button'); catBtn.className='btn btn-primary btn-sm'; catBtn.textContent='Categorize range →';
+    catBtn.addEventListener('click', async ()=>{
+      const slice = getSlice();
+      if(!slice){ alert("Enter both a From and To row number."); return; }
+      if(slice.length===0){ alert("No rows found in that range."); return; }
+      const nbId = sel.value, nbName = sel.options[sel.selectedIndex].textContent;
+      if(!confirm(`Categorize ${slice.length} benefit(s) into "${nbName}"?`)) return;
+      const allCreated = [];
+      for(const b of slice){ const created = await confirmIntoNotebooks(b.id,[nbId]); allCreated.push(...created); }
+      pushUndo(`categorized ${slice.length} benefit(s) → ${nbName}`, ()=>undoPlacements(allCreated));
+      opts.afterAction();
+    });
+    bar.appendChild(catBtn);
+  }
+  const delBtn = document.createElement('button'); delBtn.className='btn btn-danger btn-sm'; delBtn.textContent='🗑 Delete range';
+  delBtn.addEventListener('click', async ()=>{
+    const slice = getSlice();
+    if(!slice){ alert("Enter both a From and To row number."); return; }
+    if(slice.length===0){ alert("No rows found in that range."); return; }
+    if(!confirm(`Trash ${slice.length} benefit(s)? Recoverable from Trash until emptied.`)) return;
+    for(const b of slice){ b.trashed=true; await idbPut('benefits', b); }
+    pushUndo(`trashed ${slice.length} benefit(s)`, async ()=>{ for(const b of slice){ b.trashed=false; await idbPut('benefits', b); } });
+    opts.afterAction();
+  });
+  bar.appendChild(delBtn);
+  container.appendChild(bar);
+}
+
 function renderSkippedBlock(container, scopeKey, onRestore){
   const skipped = skippedBenefitsForScope(scopeKey);
   const det = document.createElement('details'); det.className='collapsible'; det.style.marginTop='10px';
@@ -1060,14 +1138,16 @@ function renderSkippedBlock(container, scopeKey, onRestore){
   } else {
     const btnRow = document.createElement('div'); btnRow.style.cssText='display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;';
     const restoreAllBtn = document.createElement('button'); restoreAllBtn.className='btn btn-ghost btn-sm'; restoreAllBtn.textContent='Restore all skipped';
-    restoreAllBtn.addEventListener('click', ()=>{
-      skipped.forEach(b=>skippedIds.delete(scopeKey+'::'+b.id));
+    restoreAllBtn.addEventListener('click', async ()=>{
+      for(const b of skipped) await removeSkip(b, scopeKey);
+      pushUndo(`restored ${skipped.length} skipped benefit(s)`, async ()=>{ for(const b of skipped) await addSkip(b, scopeKey); });
       onRestore();
     });
     const deleteAllBtn = document.createElement('button'); deleteAllBtn.className='btn btn-danger btn-sm'; deleteAllBtn.textContent='🗑 Delete all skipped';
     deleteAllBtn.addEventListener('click', async ()=>{
       if(!confirm(`Trash all ${skipped.length} skipped benefit(s)? Recoverable from Trash until emptied.`)) return;
-      for(const b of skipped){ b.trashed=true; await idbPut('benefits', b); skippedIds.delete(scopeKey+'::'+b.id); }
+      for(const b of skipped){ b.trashed=true; await idbPut('benefits', b); await removeSkip(b, scopeKey); }
+      pushUndo(`trashed ${skipped.length} skipped benefit(s)`, async ()=>{ for(const b of skipped){ b.trashed=false; await idbPut('benefits', b); } });
       onRestore();
     });
     btnRow.appendChild(restoreAllBtn); btnRow.appendChild(deleteAllBtn);
@@ -1076,12 +1156,18 @@ function renderSkippedBlock(container, scopeKey, onRestore){
       const row=document.createElement('div'); row.className='skip-row';
       row.innerHTML = `<span class="txt">${escapeHtml(b.text)}</span>`;
       const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm'; btn.textContent='Restore to pending';
-      btn.addEventListener('click', ()=>{ skippedIds.delete(scopeKey+'::'+b.id); onRestore(); });
+      btn.addEventListener('click', async ()=>{
+        await removeSkip(b, scopeKey);
+        pushUndo(`restored a skipped benefit`, ()=>addSkip(b, scopeKey));
+        onRestore();
+      });
       const delBtn=document.createElement('button'); delBtn.className='icon-btn danger'; delBtn.textContent='🗑';
       delBtn.title = 'Delete this one';
       delBtn.addEventListener('click', async ()=>{
         if(!confirm("Trash this benefit?")) return;
-        b.trashed=true; await idbPut('benefits', b); skippedIds.delete(scopeKey+'::'+b.id); onRestore();
+        b.trashed=true; await idbPut('benefits', b); await removeSkip(b, scopeKey);
+        pushUndo(`trashed a benefit`, async ()=>{ b.trashed=false; await idbPut('benefits', b); });
+        onRestore();
       });
       row.appendChild(btn); row.appendChild(delBtn);
       body.appendChild(row);
@@ -1097,7 +1183,7 @@ function renderTriageView(root, actions){
   document.getElementById('ctxSub').textContent = pending.length + " pending";
 
   const nbs = topLevelNotebooks();
-  root.innerHTML = `<div class="triage-toolbar"><input type="text" id="triageSearch" placeholder="Search pending text..."></div><div id="triageList"></div><div class="load-more-row" id="triageLoadMore"></div><div id="skipHolder"></div>`;
+  root.innerHTML = `<div class="triage-toolbar"><input type="text" id="triageSearch" placeholder="Search pending text..."></div><div id="rangeBarHolder"></div><div id="triageList"></div><div class="load-more-row" id="triageLoadMore"></div><div id="skipHolder"></div>`;
   const search = document.getElementById('triageSearch');
   let filtered = pending;
 
@@ -1106,6 +1192,10 @@ function renderTriageView(root, actions){
     filtered = q ? pending.filter(b=>matchesQuery(b.text,q)) : pending;
     const listEl = document.getElementById('triageList');
     listEl.innerHTML="";
+    const rangeHolder = document.getElementById('rangeBarHolder'); rangeHolder.innerHTML="";
+    if(filtered.length>0 && nbs.length>0){
+      renderPositionRangeBar(rangeHolder, filtered, {key:'top', targets:nbs, afterAction:()=>{ renderSidebar(); draw(); }});
+    }
     if(nbs.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>No notebooks yet. Add one from the sidebar first.</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; }
     else if(filtered.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">✓</div><div>${pending.length===0?"Nothing pending — all caught up.":"No matches."}</div></div>`; document.getElementById('triageLoadMore').innerHTML=""; }
     else {
@@ -1135,7 +1225,7 @@ function renderTriageView(root, actions){
         pushUndo(`sorted a benefit → ${nbs[digit-1].name}`, ()=>undoPlacements(created));
         pendingLimit=40; renderSidebar(); draw();
       });
-    } else if(e.key.toLowerCase()==='s'){ skippedIds.add('top::'+firstRow.id); renderSidebar(); draw(); }
+    } else if(e.key.toLowerCase()==='s'){ addSkip(firstRow,'top').then(()=>{ renderSidebar(); draw(); }); }
   };
 }
 document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.onkeydown_triage) document.onkeydown_triage(e); });
@@ -1147,17 +1237,48 @@ function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
   el.innerHTML = `
     <div class="triage-text" data-role="display">${escapeHtml(b.text)}</div>
     <div class="pill-row" data-role="pills">
-      ${targets.map((t,i)=>`<button class="pill" data-t="${t.id}"><span class="num">${i<9?(i+1):''}</span>${escapeHtml(t.name)}</button>`).join('')}
+      ${targets.map((t,i)=>`<button class="pill" data-t="${t.id}"><span class="num">${i<9?(i+1):''}</span>${escapeHtml(t.name)}${childrenOf(t.id).length?' ▾':''}</button>`).join('')}
       <button class="pill add" data-role="addnb">+ new</button>
     </div>
+    <div class="pill-row" data-role="cascade"></div>
     <div class="row-actions"></div>`;
+  const cascadeHolder = el.querySelector('[data-role="cascade"]');
+  async function placeHere(nb){
+    const created = await confirmIntoNotebooks(b.id, [nb.id]);
+    pushUndo(`sorted a benefit → ${nb.name}`, ()=>undoPlacements(created));
+    renderSidebar(); renderView();
+  }
+  function renderCascadeLevel(nb){
+    const kids = childrenOf(nb.id);
+    const wrap = document.createElement('div'); wrap.style.cssText='display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
+    const placeBtn = document.createElement('button'); placeBtn.className='btn btn-primary btn-sm'; placeBtn.textContent = `✓ Place in "${nb.name}"`;
+    placeBtn.addEventListener('click', ()=>placeHere(nb));
+    wrap.appendChild(placeBtn);
+    if(kids.length){
+      const sel = document.createElement('select');
+      sel.innerHTML = `<option value="">↳ choose a sub-heading in "${escapeHtml(nb.name)}"...</option>` + kids.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}${childrenOf(k.id).length?' ▾':''}</option>`).join('');
+      sel.addEventListener('change', ()=>{
+        while(wrap.nextSibling) cascadeHolder.removeChild(wrap.nextSibling);
+        const chosen = kids.find(k=>k.id===sel.value);
+        if(chosen) cascadeHolder.appendChild(renderCascadeLevel(chosen));
+      });
+      wrap.appendChild(sel);
+    }
+    return wrap;
+  }
   el.querySelectorAll('[data-t]').forEach(pillEl=>{
     pillEl.addEventListener('click', async ()=>{
       const targetId = pillEl.dataset.t;
-      const targetLabel = targets.find(t=>t.id===targetId)?.name || '';
-      const created = await confirmIntoNotebooks(b.id, [targetId]);
-      pushUndo(`sorted a benefit → ${targetLabel}`, ()=>undoPlacements(created));
-      renderSidebar(); renderView();
+      const nb = targets.find(t=>t.id===targetId);
+      if(!nb) return;
+      if(childrenOf(nb.id).length===0){
+        // leaf category — place immediately, same as before
+        await placeHere(nb);
+      } else {
+        // has sub-headings — show cascading picker instead of placing right away
+        cascadeHolder.innerHTML = '';
+        cascadeHolder.appendChild(renderCascadeLevel(nb));
+      }
     });
   });
   el.querySelector('[data-role="addnb"]').addEventListener('click', async ()=>{
@@ -1174,13 +1295,19 @@ function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
   const editBtn=document.createElement('button'); editBtn.className='btn btn-ghost btn-sm'; editBtn.textContent='Edit text';
   editBtn.addEventListener('click', ()=>{
     const disp = el.querySelector('[data-role="display"]');
+    const origText = b.text;
     disp.innerHTML = `<textarea>${escapeHtml(b.text)}</textarea><div style="margin-top:6px;"><button class="btn btn-primary btn-sm" data-role="savetext">Save</button></div>`;
-    disp.querySelector('[data-role="savetext"]').addEventListener('click', async ()=>{ b.text = disp.querySelector('textarea').value; await idbPut('benefits', b); renderView(); });
+    disp.querySelector('[data-role="savetext"]').addEventListener('click', async ()=>{
+      b.text = disp.querySelector('textarea').value;
+      await idbPut('benefits', b);
+      pushUndo(`edited a benefit's text`, async ()=>{ b.text = origText; await idbPut('benefits', b); });
+      renderView();
+    });
   });
   const skipBtn=document.createElement('button'); skipBtn.className='btn btn-ghost btn-sm'; skipBtn.textContent='Skip';
-  skipBtn.addEventListener('click', ()=>{
-    skippedIds.add(scopeKey+'::'+b.id);
-    pushUndo(`skipped a benefit`, ()=>{ skippedIds.delete(scopeKey+'::'+b.id); });
+  skipBtn.addEventListener('click', async ()=>{
+    await addSkip(b, scopeKey);
+    pushUndo(`skipped a benefit`, ()=>removeSkip(b, scopeKey));
     renderSidebar(); renderView();
   });
   actions.appendChild(editBtn); actions.appendChild(skipBtn);
@@ -1261,6 +1388,7 @@ function renderNotebookView(root, actions, nbId){
     <div class="collapsible-body">
       <div class="hint" style="margin-bottom:10px;">Add headings for this notebook (e.g. Wudu, Ghusl, Siwak) — each heading is its own notebook, so it can have its own sub-headings too. Tap once to file a benefit; nothing extra to confirm.</div>
       <div class="pill-row" id="headingPillBar" style="margin-bottom:10px;"></div>
+      <div id="headingRangeHolder"></div>
       <div id="headingTriageList"></div>
       <div class="load-more-row" id="headingLoadMore"></div>
       <div id="hdSkipHolder"></div>
@@ -1309,6 +1437,7 @@ function renderNotebookView(root, actions, nbId){
   function drawHeadings(){
     htList.innerHTML="";
     const currentChildren = childrenOf(nb.id);
+    const rangeHolder = hdDet.querySelector('#headingRangeHolder'); rangeHolder.innerHTML="";
     if(currentChildren.length===0){
       htList.innerHTML = `<div class="empty"><div class="big">▢</div><div>Add a heading above to start splitting this notebook further.</div></div>`;
       hdDet.querySelector('#headingLoadMore').innerHTML="";
@@ -1316,6 +1445,7 @@ function renderNotebookView(root, actions, nbId){
       htList.innerHTML = `<div class="empty"><div class="big">✓</div><div>Nothing pending for headings right now.</div></div>`;
       hdDet.querySelector('#headingLoadMore').innerHTML="";
     } else {
+      renderPositionRangeBar(rangeHolder, hdPending, {key:'hd-'+nb.id, targets:currentChildren, afterAction:()=>{ renderSidebar(); renderView(); }});
       hdPending.slice(0,headingPendingLimit).forEach(b=>{
         htList.appendChild(renderTriageRow(b, currentChildren, 'hd::'+nb.id, false, (name)=>findOrCreateChildNotebook(nb.id, name)));
       });
@@ -1594,6 +1724,7 @@ function refreshOpenBookIfNeeded(){
   else if(lastBookType==='read') openReadView(lastBookNbId);
 }
 
+
 /* ===================== Shared chunked copy controls ===================== */
 function lineToPlainText(line){
   const indent = '  '.repeat(line.depth||0);
@@ -1731,10 +1862,6 @@ function renderMasterBookView(root, actions){
   wirePageNav('mbTop'); wirePageNav('mbBot');
 
   document.getElementById('mbEditToggle').addEventListener('click', ()=>{ mbEditMode=!mbEditMode; renderView(); });
-
-
-
-
 
   document.getElementById('mbDuplicateAll').addEventListener('click', async ()=>{
     const nonEmpty = topLevelNotebooks().filter(n=>!n.excludeFromBook && placementsForNotebook(n.id).length>0);
@@ -1940,6 +2067,106 @@ function renderBenefitRow(b){
 }
 
 /* ===================== TRASH VIEW ===================== */
+/* ===================== GLOBAL SKIPPED VIEW — every skipped benefit, from every context, in one place ===================== */
+function renderGlobalSkippedView(root, actions){
+  document.getElementById('ctxTitle').textContent = "Skipped";
+  const skipped = allSkippedBenefits();
+  document.getElementById('ctxSub').textContent = `${skipped.length} skipped across all categories`;
+
+  if(skipped.length>0){
+    const restoreAllBtn=document.createElement('button'); restoreAllBtn.className='btn btn-ghost btn-sm'; restoreAllBtn.textContent='Restore all (clears every skip flag)';
+    restoreAllBtn.addEventListener('click', async ()=>{
+      if(!confirm(`Restore all ${skipped.length} skipped benefits back to pending in whichever context(s) they were skipped from?`)) return;
+      const snap = skipped.map(b=>({id:b.id, scopes:[...(b.skippedScopes||[])]}));
+      for(const b of skipped){ b.skippedScopes = []; await idbPut('benefits', b); }
+      pushUndo(`restored ${skipped.length} skipped benefit(s)`, async ()=>{
+        for(const s of snap){ const b = benefitById(s.id); if(b){ b.skippedScopes = s.scopes; await idbPut('benefits', b); } }
+      });
+      renderSidebar(); renderView();
+    });
+    const deleteAllBtn=document.createElement('button'); deleteAllBtn.className='btn btn-danger btn-sm'; deleteAllBtn.textContent='🗑 Delete ALL skipped';
+    deleteAllBtn.addEventListener('click', async ()=>{
+      if(!confirm(`Trash all ${skipped.length} skipped benefits? Recoverable from Trash until emptied.`)) return;
+      for(const b of skipped){ b.trashed=true; await idbPut('benefits', b); }
+      pushUndo(`trashed ${skipped.length} skipped benefit(s)`, async ()=>{ for(const b of skipped){ b.trashed=false; await idbPut('benefits', b); } });
+      renderSidebar(); renderView();
+    });
+    actions.appendChild(restoreAllBtn); actions.appendChild(deleteAllBtn);
+  }
+
+  root.innerHTML = `<div class="triage-toolbar"><input type="text" id="skippedSearch" placeholder="Search skipped benefits..."></div><div id="skippedRangeHolder"></div><div id="skippedList"></div><div class="load-more-row" id="skippedLoadMore"></div>`;
+  const search = document.getElementById('skippedSearch');
+  const nbs = topLevelNotebooks().filter(n=>!n.isFlashcardArchive);
+
+  function draw(){
+    const q = search.value.trim();
+    const filtered = q ? skipped.filter(b=>matchesQuery(b.text,q)) : skipped;
+    const rangeHolder = document.getElementById('skippedRangeHolder'); rangeHolder.innerHTML="";
+    const listEl = document.getElementById('skippedList');
+    listEl.innerHTML="";
+    if(filtered.length===0){
+      listEl.innerHTML = `<div class="empty"><div class="big">${skipped.length===0?'✓':'▢'}</div><div>${skipped.length===0?"Nothing skipped anywhere — all caught up.":"No matches."}</div></div>`;
+      document.getElementById('skippedLoadMore').innerHTML=""; return;
+    }
+    if(nbs.length>0) renderPositionRangeBar(rangeHolder, filtered, {key:'skipped', targets:nbs, afterAction:()=>{ renderSidebar(); renderView(); }});
+    filtered.slice(0,allBenefitsLimit).forEach(b=>listEl.appendChild(renderSkippedGlobalRow(b)));
+    const lm = document.getElementById('skippedLoadMore'); lm.innerHTML="";
+    if(filtered.length>allBenefitsLimit){
+      const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
+      btn.textContent=`Load more (${filtered.length-allBenefitsLimit} remaining)`;
+      btn.addEventListener('click', ()=>{ allBenefitsLimit+=60; draw(); });
+      lm.appendChild(btn);
+    }
+  }
+  search.addEventListener('input', draw);
+  draw();
+}
+function renderSkippedGlobalRow(b){
+  const el = document.createElement('div'); el.className='benefit-row';
+  if(b.favorite) el.style.cssText += 'border-left:2px solid var(--amber); background:rgba(212,162,76,0.07);';
+  const scopeChips = (b.skippedScopes||[]).map(sk=>`<span class="chip" style="background:var(--blue);" data-scope="${escapeHtml(sk)}">${escapeHtml(scopeLabel(sk))} <span data-role="unskip" style="cursor:pointer; margin-left:4px;" title="Restore from this context">✕</span></span>`).join(' ');
+  const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
+  el.innerHTML = `<div data-role="body">${escapeHtml(b.text)}</div><div class="benefit-chips">${scopeChips}</div>${annotationHtml}<div class="row-actions"></div>`;
+  el.querySelectorAll('[data-role="unskip"]').forEach(x=>{
+    x.addEventListener('click', async ()=>{
+      const scope = x.closest('[data-scope]').dataset.scope;
+      await removeSkip(b, scope);
+      pushUndo(`restored a skipped benefit`, ()=>addSkip(b, scope));
+      renderSidebar(); renderView();
+    });
+  });
+  const actions = el.querySelector('.row-actions');
+  actions.appendChild(makeCopyBtn(b.text));
+  const favBtn=document.createElement('button'); favBtn.className='icon-btn'+(b.favorite?' active':''); favBtn.textContent=b.favorite?'★':'☆';
+  favBtn.addEventListener('click', async ()=>{ b.favorite=!b.favorite; await idbPut('benefits',b); renderView(); });
+  const noteBtn=document.createElement('button'); noteBtn.className='icon-btn'; noteBtn.textContent=b.annotation?'✎ edit note':'+ note';
+  noteBtn.addEventListener('click', async ()=>{
+    const val = prompt("Annotation (shown as \"note: ...\" — leave empty to remove):", b.annotation||"");
+    if(val!==null){ b.annotation=val.trim(); await idbPut('benefits', b); renderView(); }
+  });
+  const editBtn=document.createElement('button'); editBtn.className='icon-btn'; editBtn.textContent='edit';
+  editBtn.addEventListener('click', ()=>{
+    const body = el.querySelector('[data-role="body"]');
+    const origText = b.text;
+    body.innerHTML = `<textarea>${escapeHtml(b.text)}</textarea><div style="margin-top:6px;"><button class="btn btn-primary btn-sm" data-role="save">Save</button></div>`;
+    body.querySelector('[data-role="save"]').addEventListener('click', async ()=>{
+      b.text = body.querySelector('textarea').value;
+      await idbPut('benefits', b);
+      pushUndo(`edited a benefit's text`, async ()=>{ b.text = origText; await idbPut('benefits', b); });
+      renderView();
+    });
+  });
+  const trashBtn=document.createElement('button'); trashBtn.className='icon-btn danger'; trashBtn.textContent='trash';
+  trashBtn.addEventListener('click', async ()=>{
+    if(!confirm("Trash this benefit?")) return;
+    b.trashed=true; await idbPut('benefits',b);
+    pushUndo(`trashed a benefit`, async ()=>{ b.trashed=false; await idbPut('benefits', b); });
+    renderSidebar(); renderView();
+  });
+  actions.appendChild(favBtn); actions.appendChild(noteBtn); actions.appendChild(editBtn); actions.appendChild(trashBtn);
+  return el;
+}
+
 function renderTrashView(root, actions){
   document.getElementById('ctxTitle').textContent="Trash";
   const trashed = benefits.filter(b=>b.trashed);
@@ -2038,7 +2265,7 @@ document.getElementById('fullResetBtn').addEventListener('click', async ()=>{
     const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, nextNumber:1, createdAt:Date.now()};
     notebooks.push(nb); await idbPut('notebooks',nb);
   }
-  skippedIds.clear(); undoStack=[];
+  undoStack=[];
   closeModal('modalData');
   switchView({type:'import'});
   alert("Everything has been reset.");
