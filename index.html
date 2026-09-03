@@ -1231,7 +1231,8 @@ function renderTriageView(root, actions){
 document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.onkeydown_triage) document.onkeydown_triage(e); });
 
 /* generic triage row: clicking a pill instantly places the benefit (single choice) and the row disappears */
- function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
+
+  function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
   const el = document.createElement('div');
   el.className='triage-row'+(isFocused?' focused':'');
   el.innerHTML = `
@@ -1248,22 +1249,32 @@ document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.o
     pushUndo(`sorted a benefit → ${nb.name}`, ()=>undoPlacements(created));
     renderSidebar(); renderView();
   }
-  function renderCascadeLevel(nb){
-    const kids = childrenOf(nb.id);
-    const wrap = document.createElement('div'); wrap.style.cssText='display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
-    const placeBtn = document.createElement('button'); placeBtn.className='btn btn-primary btn-sm'; placeBtn.textContent = `✓ Place in "${nb.name}"`;
-    placeBtn.addEventListener('click', ()=>placeHere(nb));
-    wrap.appendChild(placeBtn);
-    if(kids.length){
+  function renderCascadePicker(startNb){
+    let current = startNb;
+    const wrap = document.createElement('div'); wrap.style.cssText='display:flex; flex-direction:column; gap:8px;';
+    const selectsRow = document.createElement('div'); selectsRow.style.cssText='display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
+    const placeBtn = document.createElement('button'); placeBtn.className='btn btn-primary btn-sm';
+    function updateBtn(){ placeBtn.textContent = `✓ Place in "${current.name}"`; }
+    function addLevel(nb){
+      const kids = childrenOf(nb.id);
+      if(!kids.length) return;
       const sel = document.createElement('select');
       sel.innerHTML = `<option value="">↳ choose a sub-heading in "${escapeHtml(nb.name)}"...</option>` + kids.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}${childrenOf(k.id).length?' ▾':''}</option>`).join('');
       sel.addEventListener('change', ()=>{
-        while(wrap.nextSibling) cascadeHolder.removeChild(wrap.nextSibling);
+        let sib = sel.nextSibling;
+        while(sib){ const next = sib.nextSibling; sib.remove(); sib = next; }
         const chosen = kids.find(k=>k.id===sel.value);
-        if(chosen) cascadeHolder.appendChild(renderCascadeLevel(chosen));
+        current = chosen || nb;
+        updateBtn();
+        if(chosen) addLevel(chosen);
       });
-      wrap.appendChild(sel);
+      selectsRow.appendChild(sel);
     }
+    addLevel(startNb);
+    updateBtn();
+    placeBtn.addEventListener('click', ()=>placeHere(current));
+    wrap.appendChild(selectsRow);
+    wrap.appendChild(placeBtn);
     return wrap;
   }
   el.querySelectorAll('[data-t]').forEach(pillEl=>{
@@ -1275,9 +1286,10 @@ document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.o
         // leaf category — place immediately, same as before
         await placeHere(nb);
       } else {
-        // has sub-headings — show cascading picker instead of placing right away
+        // has sub-headings — show one cascading picker with a single "Place" button that
+        // always reflects the deepest level currently selected in the dropdowns
         cascadeHolder.innerHTML = '';
-        cascadeHolder.appendChild(renderCascadeLevel(nb));
+        cascadeHolder.appendChild(renderCascadePicker(nb));
       }
     });
   });
@@ -2509,3 +2521,4 @@ boot().catch(showFatalError);
 </script>
 </body>
 </html>
+  
