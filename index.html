@@ -1231,7 +1231,7 @@ function renderTriageView(root, actions){
 document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.onkeydown_triage) document.onkeydown_triage(e); });
 
 /* generic triage row: clicking a pill instantly places the benefit (single choice) and the row disappears */
-function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
+ function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
   const el = document.createElement('div');
   el.className='triage-row'+(isFocused?' focused':'');
   el.innerHTML = `
@@ -1690,6 +1690,7 @@ function renderBookHtml(lines, editMode){
     const indent = Math.max(depth,0)*20;
     if(l.kind==='part'){
       const partControls = editMode ? `
+        <button class="icon-btn" data-action="add-heading-here" data-notebook="${l.nbId}" title="Add a heading inside this book">+ heading</button>
         <button class="icon-btn" data-action="rename-notebook" data-notebook="${l.nbId}" title="Rename this book">✎ rename</button>
         <button class="icon-btn" data-action="dup-notebook" data-notebook="${l.nbId}" title="Duplicate this book">📋 duplicate</button>` : '';
       return `<div style="font-size:${sizes[0]}px; font-weight:${weights[0]}; margin:34px 0 10px; padding-bottom:8px; border-bottom:2px solid var(--line); color:var(--ink); display:flex; justify-content:space-between; align-items:baseline;"><span>${escapeHtml(l.text)}</span><span>${partControls}</span></div>`;
@@ -1701,6 +1702,7 @@ function renderBookHtml(lines, editMode){
       const moveControls = (editMode && l.nbId) ? `
         <button class="icon-btn" data-action="move-h-up" data-notebook="${l.nbId}">▲</button>
         <button class="icon-btn" data-action="move-h-down" data-notebook="${l.nbId}">▼</button>
+        <button class="icon-btn" data-action="add-heading-here" data-notebook="${l.nbId}" title="Add a sub-heading inside this heading">+ sub</button>
         <button class="icon-btn" data-action="rename-notebook" data-notebook="${l.nbId}" title="Rename">✎</button>
         <button class="icon-btn danger" data-action="del-heading" data-notebook="${l.nbId}">✕</button>` : '';
       return `<div style="font-size:${size}px; font-weight:${weight}; margin:${Math.max(22-depth*3,10)}px 0 8px; margin-left:${indent}px; color:var(--ink); display:flex; align-items:baseline; gap:6px;"><span>${escapeHtml(label+l.text)}</span>${moveControls}</div>`;
@@ -1723,7 +1725,6 @@ function refreshOpenBookIfNeeded(){
   if(lastBookType==='book') openFullBookView(lastBookNbId);
   else if(lastBookType==='read') openReadView(lastBookNbId);
 }
-
 
 /* ===================== Shared chunked copy controls ===================== */
 function lineToPlainText(line){
@@ -1839,7 +1840,7 @@ function renderMasterBookView(root, actions){
       <button class="btn btn-ghost btn-sm" id="mbPrintBtn">🖨 Print / Save as PDF</button>
     </div>
     <details class="collapsible" id="mbTocDet"><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>!n.excludeFromBook && placementsForNotebook(n.id).length>0).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
-    ${mbEditMode?'<div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">✏ Edit mode is on — select text and hit Highlight, edit text, reorder headings/benefits with ▲▼, delete headings, or duplicate a book. ★ favourite and + note stay available all the time. Changes save straight to the shared benefit, so every notebook that includes it updates automatically.</div>':''}
+    ${mbEditMode?'<div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">✏ Edit mode is on — add headings/sub-headings right from here with "+ heading" / "+ sub", select text and hit Highlight, edit text, reorder with ▲▼, delete headings, or duplicate a book. ★ favourite and + note stay available all the time. Everything you change here is the same underlying data as the individual books — a heading added or a benefit edited in the Master Book shows up in Fiqh etc. immediately, and vice versa.</div>':''}
     ${pageNavHtml('mbTop')}
     <div class="read-doc" id="mbPageContent" style="min-height:300px;"></div>
     ${pageNavHtml('mbBot')}
@@ -2451,6 +2452,20 @@ document.addEventListener('click', async (e)=>{
     if(nb){
       const n = prompt("Rename:", nb.name);
       if(n && n.trim()){ nb.name = n.trim(); await idbPut('notebooks', nb); afterMutation(); }
+    }
+    return;
+  }
+  const addHeadingHereBtn = e.target.closest('[data-action="add-heading-here"]');
+  if(addHeadingHereBtn){
+    const parent = nbById(addHeadingHereBtn.dataset.notebook);
+    if(parent){
+      const name = prompt(`New heading inside "${parent.name}":`);
+      if(name && name.trim()){
+        const h = findOrCreateChildNotebook(parent.id, name.trim());
+        pushUndo(`added heading "${h.name}"`, ()=>deleteNotebookAndDescendants(h.id));
+        alert(`Added "${h.name}". It won't show in the book until you place a benefit in it — use the 🏷 button on any benefit to send it there.`);
+        afterMutation();
+      }
     }
     return;
   }
