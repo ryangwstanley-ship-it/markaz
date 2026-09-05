@@ -1324,6 +1324,7 @@ function buildPillChooserEl(b, targets, onAddNew){
     }
   });
   return wrap;
+  
 }
 function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
   const el = document.createElement('div');
@@ -2177,34 +2178,15 @@ function renderGlobalSkippedView(root, actions){
   search.addEventListener('input', draw);
   draw();
 }
-function targetsForScope(scopeKey){
-  if(scopeKey==='top' || scopeKey==='cards') return topLevelNotebooks().filter(n=>!n.isFlashcardArchive);
-  if(scopeKey.startsWith('hd::')){
-    const nb = nbById(scopeKey.slice(4));
-    return nb ? childrenOf(nb.id) : [];
-  }
-  return [];
-}
-function onAddNewForScope(scopeKey){
-  if(scopeKey.startsWith('hd::')) return (name)=>findOrCreateChildNotebook(scopeKey.slice(4), name);
-  return (name)=>findOrCreateChildNotebook(null, name);
-}
 function renderSkippedGlobalRow(b){
   const el = document.createElement('div'); el.className='benefit-row';
   if(b.favorite) el.style.cssText += 'border-left:2px solid var(--amber); background:rgba(212,162,76,0.07);';
   const scopeChips = (b.skippedScopes||[]).map(sk=>`<span class="chip" style="background:var(--blue);" data-scope="${escapeHtml(sk)}">${escapeHtml(scopeLabel(sk))} <span data-role="unskip" style="cursor:pointer; margin-left:4px;" title="Restore from this context">✕</span></span>`).join(' ');
   const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
-  el.innerHTML = `<div data-role="body">${escapeHtml(b.text)}</div><div class="benefit-chips">${scopeChips}</div><div data-role="choosers" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>${annotationHtml}<div class="row-actions"></div>`;
+  el.innerHTML = `<div data-role="body">${escapeHtml(b.text)}</div><div class="benefit-chips">${scopeChips}</div><div class="hint" style="margin-top:6px;">Move to any category:</div><div data-role="choosers" style="margin-top:4px;"></div>${annotationHtml}<div class="row-actions"></div>`;
   const choosersEl = el.querySelector('[data-role="choosers"]');
-  (b.skippedScopes||[]).forEach(sk=>{
-    const targets = targetsForScope(sk);
-    if(!targets.length) return;
-    const labelDiv = document.createElement('div');
-    labelDiv.className = 'hint';
-    labelDiv.textContent = `Categorize for ${scopeLabel(sk)}:`;
-    choosersEl.appendChild(labelDiv);
-    choosersEl.appendChild(buildPillChooserEl(b, targets, onAddNewForScope(sk)));
-  });
+  const allCats = topLevelNotebooks().filter(n=>!n.isFlashcardArchive);
+  choosersEl.appendChild(buildPillChooserEl(b, allCats, (name)=>findOrCreateChildNotebook(null, name)));
   el.querySelectorAll('[data-role="unskip"]').forEach(x=>{
     x.addEventListener('click', async ()=>{
       const scope = x.closest('[data-scope]').dataset.scope;
@@ -2587,3 +2569,4 @@ boot().catch(showFatalError);
 </script>
 </body>
 </html>
+
