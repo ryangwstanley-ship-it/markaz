@@ -635,23 +635,29 @@ function placementsForNotebook(nbId){
   });
 }
 function placementsForBenefit(benId){ return benefitPlacementsIndex.get(benId) || []; }
+/* Whether a notebook OR anything nested under it has content — critical for cascaded placements,
+   where a benefit might sit only in a deep sub-heading with nothing placed directly in the
+   intermediate ancestors. A plain "has direct placements" check would wrongly treat those
+   ancestors as empty and hide the whole branch from the Book/Master Book/TOC. */
+function subtreeHasContent(nb){
+  if(placementsForNotebook(nb.id).length>0) return true;
+  return childrenOf(nb.id).some(c=>subtreeHasContent(c));
+}
 
 function pendingForTopLevelTriage(){
-  const topIds = new Set(topLevelNotebooks().map(n=>n.id));
   return benefits.filter(b=>{
     if(b.trashed) return false;
     if(b.isFlashcard) return false;
     if(isSkipped(b,'top')) return false;
-    return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>topIds.has(p.notebookId));
+    return !(benefitPlacementsIndex.get(b.id)||[]).length;
   }).sort((a,b)=>a.order-b.order);
 }
 function pendingFlashcards(){
-  const topIds = new Set(topLevelNotebooks().map(n=>n.id));
   return benefits.filter(b=>{
     if(b.trashed) return false;
     if(!b.isFlashcard) return false;
     if(isSkipped(b,'cards')) return false;
-    return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>topIds.has(p.notebookId));
+    return !(benefitPlacementsIndex.get(b.id)||[]).length;
   }).sort((a,b)=>a.order-b.order);
 }
 async function getOrCreateFlashcardsArchive(){
@@ -815,7 +821,7 @@ function renderSidebar(){
         if(!confirm(`Delete "${nb.name}" and everything nested under it? Benefits themselves are kept — only placements here are removed.`)) return;
         await deleteNotebookAndDescendants(nb.id);
         if(view.type==='notebook' && view.id===nb.id) switchView({type:'all'});
-        else { renderSidebar(); renderView(); }
+        else hardRefresh();
       });
       wrap.appendChild(div);
       if(expanded) renderLevel(nb.id, depth+1);
@@ -831,6 +837,7 @@ async function deleteNotebookAndDescendants(nbId){
   placements = placements.filter(p=>p.notebookId!==nbId);
   await idbDelete('notebooks',nbId);
   notebooks = notebooks.filter(n=>n.id!==nbId);
+  expandedNbIds.delete(nbId);
 }
 
 document.getElementById('menuBtn').addEventListener('click', ()=>document.getElementById('sidebar').classList.toggle('open'));
@@ -866,6 +873,13 @@ function switchView(v){
   renderSidebar(); renderView();
   window.scrollTo(0,0);
   if(window.innerWidth<=900) document.getElementById('sidebar').classList.remove('open');
+}
+/* Does exactly what switching tabs and back does — full pagination reset + fresh render.
+   Used after notebook deletion, which otherwise could leave stale pagination/limit state
+   causing other, unrelated notebooks to appear to vanish until you navigate away and back. */
+function hardRefresh(){
+  pendingLimit=40; notebookLimit=100; allBenefitsLimit=60; headingPendingLimit=40;
+  renderSidebar(); renderView();
 }
 function renderView(){
   rebuildIndexes();
@@ -1231,19 +1245,18 @@ function renderTriageView(root, actions){
 document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.onkeydown_triage) document.onkeydown_triage(e); });
 
 /* generic triage row: clicking a pill instantly places the benefit (single choice) and the row disappears */
-
-  function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
-  const el = document.createElement('div');
-  el.className='triage-row'+(isFocused?' focused':'');
-  el.innerHTML = `
-    <div class="triage-text" data-role="display">${escapeHtml(b.text)}</div>
+/* Reusable pill+cascade category chooser — builds the whole interactive block (pills, "+ new",
+   cascading sub-heading dropdowns with "+ create new sub-heading here", single "Place" button).
+   Used by triage rows and by the Skipped tab so both can categorize directly. */
+function buildPillChooserEl(b, targets, onAddNew){
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
     <div class="pill-row" data-role="pills">
       ${targets.map((t,i)=>`<button class="pill" data-t="${t.id}"><span class="num">${i<9?(i+1):''}</span>${escapeHtml(t.name)}${childrenOf(t.id).length?' ▾':''}</button>`).join('')}
       <button class="pill add" data-role="addnb">+ new</button>
     </div>
-    <div class="pill-row" data-role="cascade"></div>
-    <div class="row-actions"></div>`;
-  const cascadeHolder = el.querySelector('[data-role="cascade"]');
+    <div class="pill-row" data-role="cascade"></div>`;
+  const cascadeHolder = wrap.querySelector('[data-role="cascade"]');
   async function placeHere(nb){
     const created = await confirmIntoNotebooks(b.id, [nb.id]);
     pushUndo(`sorted a benefit → ${nb.name}`, ()=>undoPlacements(created));
@@ -1251,18 +1264,29 @@ document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.o
   }
   function renderCascadePicker(startNb){
     let current = startNb;
-    const wrap = document.createElement('div'); wrap.style.cssText='display:flex; flex-direction:column; gap:8px;';
+    const cwrap = document.createElement('div'); cwrap.style.cssText='display:flex; flex-direction:column; gap:8px;';
     const selectsRow = document.createElement('div'); selectsRow.style.cssText='display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
     const placeBtn = document.createElement('button'); placeBtn.className='btn btn-primary btn-sm';
     function updateBtn(){ placeBtn.textContent = `✓ Place in "${current.name}"`; }
     function addLevel(nb){
       const kids = childrenOf(nb.id);
-      if(!kids.length) return;
       const sel = document.createElement('select');
-      sel.innerHTML = `<option value="">↳ choose a sub-heading in "${escapeHtml(nb.name)}"...</option>` + kids.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}${childrenOf(k.id).length?' ▾':''}</option>`).join('');
-      sel.addEventListener('change', ()=>{
+      sel.innerHTML = `<option value="">↳ choose a sub-heading in "${escapeHtml(nb.name)}"...</option>`
+        + kids.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}${childrenOf(k.id).length?' ▾':''}</option>`).join('')
+        + `<option value="__new__">+ create new sub-heading here...</option>`;
+      sel.addEventListener('change', async ()=>{
         let sib = sel.nextSibling;
         while(sib){ const next = sib.nextSibling; sib.remove(); sib = next; }
+        if(sel.value==='__new__'){
+          const name = prompt(`New sub-heading inside "${nb.name}":`);
+          if(name && name.trim()){
+            const created = findOrCreateChildNotebook(nb.id, name.trim());
+            current = created; updateBtn(); addLevel(created);
+          } else {
+            sel.value = ''; current = nb; updateBtn();
+          }
+          return;
+        }
         const chosen = kids.find(k=>k.id===sel.value);
         current = chosen || nb;
         updateBtn();
@@ -1273,27 +1297,24 @@ document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.o
     addLevel(startNb);
     updateBtn();
     placeBtn.addEventListener('click', ()=>placeHere(current));
-    wrap.appendChild(selectsRow);
-    wrap.appendChild(placeBtn);
-    return wrap;
+    cwrap.appendChild(selectsRow);
+    cwrap.appendChild(placeBtn);
+    return cwrap;
   }
-  el.querySelectorAll('[data-t]').forEach(pillEl=>{
+  wrap.querySelectorAll('[data-t]').forEach(pillEl=>{
     pillEl.addEventListener('click', async ()=>{
       const targetId = pillEl.dataset.t;
       const nb = targets.find(t=>t.id===targetId);
       if(!nb) return;
       if(childrenOf(nb.id).length===0){
-        // leaf category — place immediately, same as before
         await placeHere(nb);
       } else {
-        // has sub-headings — show one cascading picker with a single "Place" button that
-        // always reflects the deepest level currently selected in the dropdowns
         cascadeHolder.innerHTML = '';
         cascadeHolder.appendChild(renderCascadePicker(nb));
       }
     });
   });
-  el.querySelector('[data-role="addnb"]').addEventListener('click', async ()=>{
+  wrap.querySelector('[data-role="addnb"]').addEventListener('click', async ()=>{
     const name = prompt("New name:");
     if(name && name.trim()){
       const t = onAddNew(name.trim());
@@ -1302,6 +1323,16 @@ document.addEventListener('keydown',(e)=>{ if(view.type==='triage' && document.o
       renderSidebar(); renderView();
     }
   });
+  return wrap;
+}
+function renderTriageRow(b, targets, scopeKey, isFocused, onAddNew){
+  const el = document.createElement('div');
+  el.className='triage-row'+(isFocused?' focused':'');
+  el.innerHTML = `
+    <div class="triage-text" data-role="display">${escapeHtml(b.text)}</div>
+    <div data-role="chooser"></div>
+    <div class="row-actions"></div>`;
+  el.querySelector('[data-role="chooser"]').appendChild(buildPillChooserEl(b, targets, onAddNew));
   const actions = el.querySelector('.row-actions');
   actions.appendChild(makeCopyBtn(b.text));
   const editBtn=document.createElement('button'); editBtn.className='btn btn-ghost btn-sm'; editBtn.textContent='Edit text';
@@ -1416,7 +1447,7 @@ function renderNotebookView(root, actions, nbId){
         e.stopPropagation();
         if(!confirm(`Delete heading "${c.name}" and everything nested under it? Benefits are kept — only placements here are removed.`)) return;
         await deleteNotebookAndDescendants(c.id);
-        renderSidebar(); renderView();
+        hardRefresh();
         return;
       }
       if(e.target.dataset.role==='renamepill'){
@@ -1681,7 +1712,7 @@ function buildFullBookLines(nb, depth, numberPath){
   children.forEach(c => placementsForNotebook(c.id).forEach(p=>childBenefitIds.add(p.benefitId)));
   const ownLeftovers = placementsForNotebook(nb.id).filter(p=>!childBenefitIds.has(p.benefitId));
 
-  const nonEmptyChildren = children.filter(c=>placementsForNotebook(c.id).length>0);
+  const nonEmptyChildren = children.filter(c=>subtreeHasContent(c));
   nonEmptyChildren.forEach((child,i)=>{
     const path = [...numberPath, i+1];
     lines.push({kind:'heading', text:child.name, depth, numberLabel: path.join('.')+'.', nbId:child.id, parentNbId:nb.id});
@@ -1807,7 +1838,7 @@ function buildMasterBookLines(){
   let lines = [];
   topLevelNotebooks().forEach(nb=>{
     if(nb.excludeFromBook) return;
-    if(placementsForNotebook(nb.id).length===0) return;
+    if(!subtreeHasContent(nb)) return;
     lines.push({kind:'part', text:nb.name, nbId:nb.id});
     lines = lines.concat(buildFullBookLines(nb, 0, []));
   });
@@ -1826,7 +1857,7 @@ function renderMasterBookView(root, actions){
   document.getElementById('ctxTitle').textContent = "Master Book";
   computeMasterPages();
   const totalBenefits = mbAllLines.filter(l=>l.kind==='para').length;
-  document.getElementById('ctxSub').textContent = `${totalBenefits} benefit(s) · ${mbPages.length} page(s) · ${topLevelNotebooks().filter(n=>!n.excludeFromBook && placementsForNotebook(n.id).length>0).length} book(s) combined`;
+  document.getElementById('ctxSub').textContent = `${totalBenefits} benefit(s) · ${mbPages.length} page(s) · ${topLevelNotebooks().filter(n=>!n.excludeFromBook && subtreeHasContent(n)).length} book(s) combined`;
 
   const pageNavHtml = (idPrefix)=>`
     <div class="triage-toolbar" style="justify-content:center;">
@@ -1851,7 +1882,7 @@ function renderMasterBookView(root, actions){
       <button class="btn btn-ghost btn-sm" id="mbExportAll">⬇ Export whole book (.txt)</button>
       <button class="btn btn-ghost btn-sm" id="mbPrintBtn">🖨 Print / Save as PDF</button>
     </div>
-    <details class="collapsible" id="mbTocDet"><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>!n.excludeFromBook && placementsForNotebook(n.id).length>0).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
+    <details class="collapsible" id="mbTocDet"><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>!n.excludeFromBook && subtreeHasContent(n)).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
     ${mbEditMode?'<div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">✏ Edit mode is on — add headings/sub-headings right from here with "+ heading" / "+ sub", select text and hit Highlight, edit text, reorder with ▲▼, delete headings, or duplicate a book. ★ favourite and + note stay available all the time. Everything you change here is the same underlying data as the individual books — a heading added or a benefit edited in the Master Book shows up in Fiqh etc. immediately, and vice versa.</div>':''}
     ${pageNavHtml('mbTop')}
     <div class="read-doc" id="mbPageContent" style="min-height:300px;"></div>
@@ -1877,7 +1908,7 @@ function renderMasterBookView(root, actions){
   document.getElementById('mbEditToggle').addEventListener('click', ()=>{ mbEditMode=!mbEditMode; renderView(); });
 
   document.getElementById('mbDuplicateAll').addEventListener('click', async ()=>{
-    const nonEmpty = topLevelNotebooks().filter(n=>!n.excludeFromBook && placementsForNotebook(n.id).length>0);
+    const nonEmpty = topLevelNotebooks().filter(n=>!n.excludeFromBook && subtreeHasContent(n));
     if(nonEmpty.length===0){ alert("Nothing to duplicate yet."); return; }
     if(!confirm(`Duplicate all ${nonEmpty.length} book(s) with fully independent copies of every benefit, so you can experiment safely? This can take a moment for large libraries.`)) return;
     const btn = document.getElementById('mbDuplicateAll'); btn.textContent='⏳ duplicating…'; btn.disabled=true;
@@ -1890,7 +1921,7 @@ function renderMasterBookView(root, actions){
     let txt = '';
     topLevelNotebooks().forEach(nb=>{
       if(nb.excludeFromBook) return;
-      if(placementsForNotebook(nb.id).length===0) return;
+      if(!subtreeHasContent(nb)) return;
       txt += `${nb.name}\n${'='.repeat(nb.name.length)}\n\n`;
       txt += buildFullBookLines(nb,0,[]).map(lineToPlainText).join('');
       txt += '\n\n';
@@ -1920,6 +1951,9 @@ function drawMbPage(){
   });
 }
 
+/* TOC is compact by default — only top-level books are listed. Each expandable node gets a ▸/▾
+   chevron; expanding reveals its own children, however many levels deep, on demand. */
+let mbTocExpanded = new Set();
 function renderMbToc(){
   const wrap = document.getElementById('mbToc');
   wrap.innerHTML='';
@@ -1929,26 +1963,35 @@ function renderMbToc(){
       if((l.kind==='heading'||l.kind==='part') && l.nbId && !firstPage.has(l.nbId)) firstPage.set(l.nbId, pIdx);
     });
   });
-  function renderLevel(parentId, depth){
+  function renderLevel(parentId, depth, container){
     (parentId===null ? topLevelNotebooks() : childrenOf(parentId)).forEach(nb=>{
       if(nb.excludeFromBook) return;
-      if(placementsForNotebook(nb.id).length===0) return;
+      if(!subtreeHasContent(nb)) return;
+      const hasKids = childrenOf(nb.id).some(c=>subtreeHasContent(c));
+      const expanded = mbTocExpanded.has(nb.id);
       const row = document.createElement('div');
-      row.style.marginLeft = (depth*14)+'px';
-      row.style.cursor='pointer';
+      row.style.marginLeft = (depth*16)+'px';
       row.style.padding='4px 0';
+      row.style.display='flex'; row.style.alignItems='center'; row.style.gap='6px';
       row.style.fontSize = depth===0? '13px':'12px';
       row.style.fontWeight = depth===0? '700':'400';
-      row.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span> ${escapeHtml(nb.name)}`;
-      row.addEventListener('click', ()=>{
+      const chevron = hasKids ? `<span data-role="chev" style="cursor:pointer; color:var(--ink-faint); width:12px; display:inline-block;">${expanded?'▾':'▸'}</span>` : `<span style="width:12px; display:inline-block;"></span>`;
+      row.innerHTML = `${chevron}<span class="nb-dot" style="background:${nb.color}"></span><span data-role="jump" style="cursor:pointer;">${escapeHtml(nb.name)}</span>`;
+      const jump = row.querySelector('[data-role="jump"]');
+      jump.addEventListener('click', ()=>{
         const p = firstPage.get(nb.id);
         if(p!==undefined){ mbCurrentPage=p; drawMbPage(); }
       });
-      wrap.appendChild(row);
-      renderLevel(nb.id, depth+1);
+      const chev = row.querySelector('[data-role="chev"]');
+      if(chev) chev.addEventListener('click', ()=>{
+        if(mbTocExpanded.has(nb.id)) mbTocExpanded.delete(nb.id); else mbTocExpanded.add(nb.id);
+        renderMbToc();
+      });
+      container.appendChild(row);
+      if(hasKids && expanded) renderLevel(nb.id, depth+1, container);
     });
   }
-  renderLevel(null, 0);
+  renderLevel(null, 0, wrap);
 }
 
 function renderMbCopyPanel(){
@@ -2134,12 +2177,34 @@ function renderGlobalSkippedView(root, actions){
   search.addEventListener('input', draw);
   draw();
 }
+function targetsForScope(scopeKey){
+  if(scopeKey==='top' || scopeKey==='cards') return topLevelNotebooks().filter(n=>!n.isFlashcardArchive);
+  if(scopeKey.startsWith('hd::')){
+    const nb = nbById(scopeKey.slice(4));
+    return nb ? childrenOf(nb.id) : [];
+  }
+  return [];
+}
+function onAddNewForScope(scopeKey){
+  if(scopeKey.startsWith('hd::')) return (name)=>findOrCreateChildNotebook(scopeKey.slice(4), name);
+  return (name)=>findOrCreateChildNotebook(null, name);
+}
 function renderSkippedGlobalRow(b){
   const el = document.createElement('div'); el.className='benefit-row';
   if(b.favorite) el.style.cssText += 'border-left:2px solid var(--amber); background:rgba(212,162,76,0.07);';
   const scopeChips = (b.skippedScopes||[]).map(sk=>`<span class="chip" style="background:var(--blue);" data-scope="${escapeHtml(sk)}">${escapeHtml(scopeLabel(sk))} <span data-role="unskip" style="cursor:pointer; margin-left:4px;" title="Restore from this context">✕</span></span>`).join(' ');
   const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
-  el.innerHTML = `<div data-role="body">${escapeHtml(b.text)}</div><div class="benefit-chips">${scopeChips}</div>${annotationHtml}<div class="row-actions"></div>`;
+  el.innerHTML = `<div data-role="body">${escapeHtml(b.text)}</div><div class="benefit-chips">${scopeChips}</div><div data-role="choosers" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>${annotationHtml}<div class="row-actions"></div>`;
+  const choosersEl = el.querySelector('[data-role="choosers"]');
+  (b.skippedScopes||[]).forEach(sk=>{
+    const targets = targetsForScope(sk);
+    if(!targets.length) return;
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'hint';
+    labelDiv.textContent = `Categorize for ${scopeLabel(sk)}:`;
+    choosersEl.appendChild(labelDiv);
+    choosersEl.appendChild(buildPillChooserEl(b, targets, onAddNewForScope(sk)));
+  });
   el.querySelectorAll('[data-role="unskip"]').forEach(x=>{
     x.addEventListener('click', async ()=>{
       const scope = x.closest('[data-scope]').dataset.scope;
@@ -2443,7 +2508,8 @@ document.addEventListener('click', async (e)=>{
     const nb = nbById(delHeading.dataset.notebook);
     if(nb && confirm(`Delete heading "${nb.name}" and everything nested under it? Benefits are kept — only placements here are removed.`)){
       await deleteNotebookAndDescendants(nb.id);
-      afterMutation();
+      refreshOpenBookIfNeeded();
+      hardRefresh();
     }
     return;
   }
@@ -2521,4 +2587,3 @@ boot().catch(showFatalError);
 </script>
 </body>
 </html>
-  
