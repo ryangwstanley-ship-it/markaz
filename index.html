@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ledger — Benefit Sorter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#15181b; --bg-raised:#1e2226; --card:#23282d; --card-hover:#292f35;
@@ -124,6 +126,24 @@
   @media (min-width:640px){ .placement-actions{width:auto; order:0; max-width:260px;} }
   .read-doc mark{background:var(--amber); color:#1a1408; padding:0 2px; border-radius:2px;}
   .organised-chip{display:inline-block; font-size:10px; font-family:var(--mono); background:var(--bg-raised); color:var(--teal); padding:2px 7px; border-radius:8px; margin-top:5px;}
+
+  /* 3-dot row menu — replaces a whole row of buttons with one tidy dropdown */
+  .row-menu-wrap{position:relative; display:inline-block; margin-left:6px;}
+  .row-menu-wrap > .icon-btn{font-weight:700; letter-spacing:1px;}
+  .row-dropdown{display:none; flex-direction:column; gap:2px; position:absolute; right:0; top:100%; margin-top:4px; z-index:30; background:var(--bg-raised); border:1px solid var(--line); border-radius:8px; padding:6px; min-width:210px; box-shadow:0 10px 28px rgba(0,0,0,.35);}
+  .row-menu-wrap.open .row-dropdown{display:flex;}
+  .row-dropdown button{background:none; border:none; text-align:left; color:var(--ink-dim); padding:8px 10px; border-radius:5px; font-size:12.5px; cursor:pointer; white-space:nowrap;}
+  .row-dropdown button:hover{background:var(--card); color:var(--ink);}
+  .row-dropdown button.danger{color:var(--red);}
+
+  /* Master Book — right-to-left Arabic manuscript styling */
+  .mb-rtl{direction:rtl; text-align:right; font-family:'Amiri','Noto Naskh Arabic',var(--sans); line-height:2.15; font-size:16px;}
+  .mb-rtl .mb-para{text-align:right;}
+  .mb-rtl .rd-num{margin-right:0; margin-left:10px; color:var(--amber); font-weight:700; font-family:var(--mono); font-size:12px;}
+  .mb-rtl .annotation-line{text-align:right;}
+  .mb-rtl .row-dropdown{right:auto; left:0;}
+  .mb-rtl .row-dropdown button{text-align:right;}
+  .mb-rtl .organised-chip{font-family:var(--sans);}
 
   .skip-row{display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--line); font-size:13px;}
   .skip-row:last-child{border-bottom:none;}
@@ -396,6 +416,8 @@ function findOrCreateChildNotebook(parentId, name){
   return nb;
 }
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+const ARABIC_DIGITS = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+function toArabicNumerals(s){ return String(s).replace(/[0-9]/g, d=>ARABIC_DIGITS[+d]); }
 
 /* ===================== Undo stack ===================== */
 let undoStack = [];
@@ -770,6 +792,40 @@ function allPendingForHeadingsEverywhere(){
 }
 function skippedBenefitsForScope(scopeKey){
   return benefits.filter(b=>!b.trashed && isSkipped(b, scopeKey));
+}
+
+/* Deleting a "skipped" entry should only remove it from the one heading/category that skip belongs
+   to — never trash it everywhere. A "hd::<nbId>" scope skip means the benefit already sits directly
+   in that notebook (nb) awaiting a sub-heading; deleting it there just removes that one placement.
+   A "top"/"cards" scope skip means the benefit isn't placed anywhere yet, so there's nothing to
+   unfile it from — that's the only case where trashing it outright makes sense. */
+async function unfileFromScope(b, scopeKey){
+  if(scopeKey.startsWith('hd::')){
+    const nbId = scopeKey.slice(4);
+    const removed = (benefitPlacementsIndex.get(b.id)||[]).filter(p=>p.notebookId===nbId);
+    for(const p of removed) await idbDelete('placements', p.id);
+    placements = placements.filter(p=>!(p.benefitId===b.id && p.notebookId===nbId));
+    await removeSkip(b, scopeKey);
+    return {type:'unfiled', notebookId:nbId, removedPlacements:removed};
+  } else {
+    b.trashed = true; await idbPut('benefits', b);
+    await removeSkip(b, scopeKey);
+    return {type:'trashed'};
+  }
+}
+async function undoUnfile(b, scopeKey, result){
+  if(result.type==='unfiled'){
+    for(const p of result.removedPlacements){ placements.push(p); await idbPut('placements', p); }
+  } else {
+    b.trashed = false; await idbPut('benefits', b);
+  }
+  await addSkip(b, scopeKey);
+}
+async function deleteSkippedEverywhere(b){
+  const scopes = [...(b.skippedScopes||[])];
+  const results = [];
+  for(const sk of scopes) results.push({scope:sk, result: await unfileFromScope(b, sk)});
+  return results;
 }
 
 /* ===================== Sidebar ===================== */
@@ -1173,11 +1229,19 @@ function renderSkippedBlock(container, scopeKey, onRestore){
       pushUndo(`restored ${skipped.length} skipped benefit(s)`, async ()=>{ for(const b of skipped) await addSkip(b, scopeKey); });
       onRestore();
     });
-    const deleteAllBtn = document.createElement('button'); deleteAllBtn.className='btn btn-danger btn-sm'; deleteAllBtn.textContent='🗑 Delete all skipped';
+    const isHeadingScope = scopeKey.startsWith('hd::');
+    const deleteAllBtn = document.createElement('button'); deleteAllBtn.className='btn btn-danger btn-sm';
+    deleteAllBtn.textContent = isHeadingScope ? '🗑 Remove all skipped from this category' : '🗑 Delete all skipped';
     deleteAllBtn.addEventListener('click', async ()=>{
-      if(!confirm(`Trash all ${skipped.length} skipped benefit(s)? Recoverable from Trash until emptied.`)) return;
-      for(const b of skipped){ b.trashed=true; await idbPut('benefits', b); await removeSkip(b, scopeKey); }
-      pushUndo(`trashed ${skipped.length} skipped benefit(s)`, async ()=>{ for(const b of skipped){ b.trashed=false; await idbPut('benefits', b); } });
+      const msg = isHeadingScope
+        ? `Remove all ${skipped.length} skipped benefit(s) from this category? They stay in any other category they're already placed in.`
+        : `Trash all ${skipped.length} skipped benefit(s)? None of them are placed in any category yet.`;
+      if(!confirm(msg)) return;
+      const undoData = [];
+      for(const b of skipped) undoData.push({b, result: await unfileFromScope(b, scopeKey)});
+      pushUndo(isHeadingScope?`removed ${skipped.length} benefit(s) from this category`:`trashed ${skipped.length} skipped benefit(s)`, async ()=>{
+        for(const {b,result} of undoData) await undoUnfile(b, scopeKey, result);
+      });
       onRestore();
     });
     btnRow.appendChild(restoreAllBtn); btnRow.appendChild(deleteAllBtn);
@@ -1192,11 +1256,14 @@ function renderSkippedBlock(container, scopeKey, onRestore){
         onRestore();
       });
       const delBtn=document.createElement('button'); delBtn.className='icon-btn danger'; delBtn.textContent='🗑';
-      delBtn.title = 'Delete this one';
+      delBtn.title = scopeKey.startsWith('hd::') ? 'Remove from this category only' : 'Delete this one';
       delBtn.addEventListener('click', async ()=>{
-        if(!confirm("Trash this benefit?")) return;
-        b.trashed=true; await idbPut('benefits', b); await removeSkip(b, scopeKey);
-        pushUndo(`trashed a benefit`, async ()=>{ b.trashed=false; await idbPut('benefits', b); });
+        const msg = scopeKey.startsWith('hd::')
+          ? "Remove this benefit from this category? It stays in any other category it's already placed in."
+          : "Trash this benefit? It isn't placed in any category yet.";
+        if(!confirm(msg)) return;
+        const result = await unfileFromScope(b, scopeKey);
+        pushUndo(scopeKey.startsWith('hd::')?`removed a benefit from this category`:`trashed a benefit`, ()=>undoUnfile(b, scopeKey, result));
         onRestore();
       });
       row.appendChild(btn); row.appendChild(delBtn);
@@ -1393,7 +1460,7 @@ async function undoPlacements(createdPlacements){
 }
 
 /* ===================== NOTEBOOK VIEW ===================== */
-function renderNotebookView(root, actions, nbId){
+ function renderNotebookView(root, actions, nbId){
   const nb = nbById(nbId);
   if(!nb){ switchView({type:'all'}); return; }
   const list = placementsForNotebook(nbId);
@@ -1737,8 +1804,9 @@ function exportNotebookTxt(nbId){
 }
 function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
 
-/* shared paragraph markup — includes highlight color, edit, reorder (edit-mode only), and add-to-more-headings */
-function paraHtml(l, editMode){
+/* shared paragraph markup — one 3-dot dropdown replaces the old row of separate buttons.
+   rtl=true (Master Book) shows Arabic-Indic numerals with the number BEFORE the #, e.g. "١٢٣#". */
+function paraHtml(l, editMode, rtl){
   const indent = (l.depth||0)*20;
   const b = benefitById(l.benefitId);
   const isFav = b && b.favorite;
@@ -1747,22 +1815,28 @@ function paraHtml(l, editMode){
     : `margin-left:${indent}px;`;
   const displayHtml = l.searchQuery ? highlightQuery(b?b.text:l.text, l.searchQuery) : renderTextWithHighlights(b?b.text:l.text, b?b.highlights:null);
   const annotationHtml = b && b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
-  const editControls = editMode ? `
-    <button class="icon-btn" data-action="hl-select" data-benefit="${l.benefitId}" title="Highlight the text you selected">🖍 highlight</button>
-    ${b && b.highlights && b.highlights.length ? `<button class="icon-btn" data-action="hl-clear" data-benefit="${l.benefitId}" title="Clear highlights on this benefit">🧹 clear</button>`:''}
-    <button class="icon-btn" data-action="edit-benefit" data-benefit="${l.benefitId}">edit</button>
-    ${l.placementId?`<button class="icon-btn" data-action="move-p-up" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▲</button>
-    <button class="icon-btn" data-action="move-p-down" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▼</button>`:''}
-    ${l.placementId?`<button class="icon-btn" data-action="remove-here" data-placement="${l.placementId}" data-notebook="${l.notebookId}" title="Remove just from this notebook">remove here</button>`:''}
-    <button class="icon-btn danger" data-action="trash-benefit" data-benefit="${l.benefitId}" title="Trash this benefit everywhere">🗑 trash</button>
-  `:'';
+  const numDisplay = rtl ? `${toArabicNumerals(l.number)}#` : `#${l.number}`;
+  const editExtras = editMode ? `
+        ${l.placementId?`<button data-action="move-p-up" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▲ Move up</button>
+        <button data-action="move-p-down" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▼ Move down</button>
+        <button data-action="remove-here" data-placement="${l.placementId}" data-notebook="${l.notebookId}">Remove from here only</button>`:''}
+        <button data-action="trash-benefit" data-benefit="${l.benefitId}" class="danger">🗑 Trash</button>` : '';
+  const menu = `<span class="row-menu-wrap" data-role="rowmenu">
+      <button class="icon-btn" data-action="toggle-menu" title="Options">⋮</button>
+      <div class="row-dropdown">
+        <button data-action="edit-benefit" data-benefit="${l.benefitId}">✎ Edit</button>
+        <button data-action="addhead" data-benefit="${l.benefitId}">🔀 Move / duplicate to another category…</button>
+        <button data-action="add-heading-here-p" data-notebook="${l.notebookId||''}">＋ Add heading</button>
+        <button data-action="add-benefit-here-p" data-notebook="${l.notebookId||''}">＋ Add benefit</button>
+        <button data-action="fav-benefit" data-benefit="${l.benefitId}">${isFav?'★':'☆'} Favourite</button>
+        <button data-action="annotate-benefit" data-benefit="${l.benefitId}">${b&&b.annotation?'✎ Edit note':'📝 Add note'}</button>
+        <button data-action="hl-select" data-benefit="${l.benefitId}">🖍 Highlight selection</button>
+        ${b && b.highlights && b.highlights.length ? `<button data-action="hl-clear" data-benefit="${l.benefitId}">🧹 Clear highlight</button>`:''}
+        ${editExtras}
+      </div>
+    </span>`;
   return `<p class="mb-para" data-benefit-line="${l.benefitId}" style="${rowStyle}">
-    <span class="rd-num">#${l.number}</span><span data-role="ptext">${displayHtml}</span>
-    <button class="icon-btn ${isFav?'active':''}" data-action="fav-benefit" data-benefit="${l.benefitId}" title="Favourite this benefit">${isFav?'★':'☆'}</button>
-    <button class="icon-btn" data-action="addhead" data-benefit="${l.benefitId}">🏷 headings</button>
-    <button class="icon-btn" data-action="annotate-benefit" data-benefit="${l.benefitId}">${b&&b.annotation?'✎ edit note':'+ note'}</button>
-    ${editControls}
-    ${annotationHtml}
+    <span class="rd-num">${numDisplay}</span><span data-role="ptext">${displayHtml}</span>${menu}${annotationHtml}
   </p>`;
 }
 
@@ -1777,7 +1851,7 @@ function openReadView(nbId){
   const lines = list.map(p=>({kind:'para', number:p.number, text:benefitById(p.benefitId).text, benefitId:p.benefitId, placementId:p.id, notebookId:nbId, depth:0}));
   document.getElementById('readTitle').textContent = "Read view — "+nb.name;
   const body = document.getElementById('readDocBody');
-  body.innerHTML = lines.length ? lines.map(l=>paraHtml(l,false)).join('') : `<div class="empty">Nothing here yet.</div>`;
+  body.innerHTML = lines.length ? lines.map(l=>paraHtml(l,false,false)).join('') : `<div class="empty">Nothing here yet.</div>`;
   setupChunkCopy(lines);
   openModal('modalRead');
 }
@@ -1803,7 +1877,7 @@ function buildFullBookLines(nb, depth, numberPath){
   }
   return lines;
 }
-function renderBookHtml(lines, editMode){
+function renderBookHtml(lines, editMode, rtl){
   const sizes = [26,21,18,15.5,13.5,12.5,12];
   const weights = [900,800,700,650,600,600,600];
   return lines.map(l=>{
@@ -1811,25 +1885,33 @@ function renderBookHtml(lines, editMode){
     const sizeIdx = depth+1;
     const indent = Math.max(depth,0)*20;
     if(l.kind==='part'){
-      const partControls = editMode ? `
-        <button class="icon-btn" data-action="add-heading-here" data-notebook="${l.nbId}" title="Add a heading inside this book">+ heading</button>
-        <button class="icon-btn" data-action="rename-notebook" data-notebook="${l.nbId}" title="Rename this book">✎ rename</button>
-        <button class="icon-btn" data-action="dup-notebook" data-notebook="${l.nbId}" title="Duplicate this book">📋 duplicate</button>` : '';
-      return `<div style="font-size:${sizes[0]}px; font-weight:${weights[0]}; margin:34px 0 10px; padding-bottom:8px; border-bottom:2px solid var(--line); color:var(--ink); display:flex; justify-content:space-between; align-items:baseline;"><span>${escapeHtml(l.text)}</span><span>${partControls}</span></div>`;
+      const partMenu = editMode ? `<span class="row-menu-wrap" data-role="rowmenu">
+        <button class="icon-btn" data-action="toggle-menu" title="Options">⋮</button>
+        <div class="row-dropdown">
+          <button data-action="add-heading-here" data-notebook="${l.nbId}">＋ Add heading</button>
+          <button data-action="rename-notebook" data-notebook="${l.nbId}">✎ Rename</button>
+          <button data-action="dup-notebook" data-notebook="${l.nbId}">📋 Duplicate</button>
+        </div></span>` : '';
+      const borderColor = rtl ? 'var(--amber)' : 'var(--line)';
+      return `<div style="font-size:${sizes[0]}px; font-weight:${weights[0]}; margin:34px 0 10px; padding-bottom:8px; border-bottom:2px solid ${borderColor}; color:var(--ink); display:flex; justify-content:space-between; align-items:baseline;"><span>${escapeHtml(l.text)}</span><span>${partMenu}</span></div>`;
     }
     if(l.kind==='heading'){
       const size = sizes[Math.min(sizeIdx,sizes.length-1)];
       const weight = weights[Math.min(sizeIdx,weights.length-1)];
-      const label = l.numberLabel ? l.numberLabel+' ' : '';
-      const moveControls = (editMode && l.nbId) ? `
-        <button class="icon-btn" data-action="move-h-up" data-notebook="${l.nbId}">▲</button>
-        <button class="icon-btn" data-action="move-h-down" data-notebook="${l.nbId}">▼</button>
-        <button class="icon-btn" data-action="add-heading-here" data-notebook="${l.nbId}" title="Add a sub-heading inside this heading">+ sub</button>
-        <button class="icon-btn" data-action="rename-notebook" data-notebook="${l.nbId}" title="Rename">✎</button>
-        <button class="icon-btn danger" data-action="del-heading" data-notebook="${l.nbId}">✕</button>` : '';
-      return `<div style="font-size:${size}px; font-weight:${weight}; margin:${Math.max(22-depth*3,10)}px 0 8px; margin-left:${indent}px; color:var(--ink); display:flex; align-items:baseline; gap:6px;"><span>${escapeHtml(label+l.text)}</span>${moveControls}</div>`;
+      const label = l.numberLabel ? (rtl?toArabicNumerals(l.numberLabel):l.numberLabel)+' ' : '';
+      const headingMenu = (editMode && l.nbId) ? `<span class="row-menu-wrap" data-role="rowmenu">
+        <button class="icon-btn" data-action="toggle-menu" title="Options">⋮</button>
+        <div class="row-dropdown">
+          <button data-action="add-heading-here" data-notebook="${l.nbId}">＋ Add sub-heading</button>
+          <button data-action="rename-notebook" data-notebook="${l.nbId}">✎ Rename</button>
+          <button data-action="dup-notebook" data-notebook="${l.nbId}">📋 Duplicate</button>
+          <button data-action="move-h-up" data-notebook="${l.nbId}">▲ Move up</button>
+          <button data-action="move-h-down" data-notebook="${l.nbId}">▼ Move down</button>
+          <button data-action="del-heading" data-notebook="${l.nbId}" class="danger">🗑 Delete</button>
+        </div></span>` : '';
+      return `<div style="font-size:${size}px; font-weight:${weight}; margin:${Math.max(22-depth*3,10)}px 0 8px; margin-left:${indent}px; color:var(--ink); display:flex; align-items:baseline; gap:6px;"><span>${escapeHtml(label+l.text)}</span>${headingMenu}</div>`;
     }
-    return paraHtml(l, editMode);
+    return paraHtml(l, editMode, rtl);
   }).join('');
 }
 function openFullBookView(nbId){
@@ -1838,7 +1920,7 @@ function openFullBookView(nbId){
   const lines = buildFullBookLines(nb, 0, []);
   document.getElementById('readTitle').textContent = "Full Book — "+nb.name;
   const body = document.getElementById('readDocBody');
-  body.innerHTML = lines.length ? renderBookHtml(lines,false) : `<div class="empty">Nothing here yet — sort some benefits into headings first.</div>`;
+  body.innerHTML = lines.length ? renderBookHtml(lines,false,false) : `<div class="empty">Nothing here yet — sort some benefits into headings first.</div>`;
   setupChunkCopy(lines);
   openModal('modalRead');
 }
@@ -1910,7 +1992,7 @@ function setupChunkCopy(lines){
 document.getElementById('printReadBtn').addEventListener('click', ()=>window.print());
 
 /* ===================== MASTER BOOK: every book combined, in pages, with search/edit/reorder/duplicate ===================== */
-let mbPages = [], mbAllLines = [], mbCurrentPage = 0, mbEditMode = false;
+let mbPages = [], mbAllLines = [], mbCurrentPage = 0;
 let mbSearchMatches = [], mbMatchIdx = -1, mbSearchQuery = '';
 
 function buildMasterBookLines(){
@@ -1956,15 +2038,14 @@ function renderMasterBookView(root, actions){
       <button class="btn btn-ghost btn-sm" id="mbNextMatch">match ▶</button>
     </div>
     <div class="triage-toolbar">
-      <button class="btn ${mbEditMode?'btn-primary':'btn-ghost'} btn-sm" id="mbEditToggle">✏ Edit mode: ${mbEditMode?'On':'Off'}</button>
       <button class="btn btn-ghost btn-sm" id="mbDuplicateAll">📋 Duplicate entire book</button>
       <button class="btn btn-ghost btn-sm" id="mbExportAll">⬇ Export whole book (.txt)</button>
       <button class="btn btn-ghost btn-sm" id="mbPrintBtn">🖨 Print / Save as PDF</button>
     </div>
     <details class="collapsible" id="mbTocDet"><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>!n.excludeFromBook && subtreeHasContent(n)).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
-    ${mbEditMode?'<div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">✏ Edit mode is on — add headings/sub-headings right from here with "+ heading" / "+ sub", select text and hit Highlight, edit text, reorder with ▲▼, delete headings, or duplicate a book. ★ favourite and + note stay available all the time. Everything you change here is the same underlying data as the individual books — a heading added or a benefit edited in the Master Book shows up in Fiqh etc. immediately, and vice versa.</div>':''}
+    <div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">Tap the ⋮ on any line for its options — edit, move/duplicate to another category, add a heading or benefit right here, favourite, or add a note. Everything here is the same underlying data as the individual books, so changes show up everywhere immediately.</div>
     ${pageNavHtml('mbTop')}
-    <div class="read-doc" id="mbPageContent" style="min-height:300px;"></div>
+    <div class="read-doc mb-rtl" id="mbPageContent" dir="rtl" style="min-height:300px;"></div>
     ${pageNavHtml('mbBot')}
     <details class="collapsible" id="mbCopyDet"><summary>Copy in chunks</summary><div class="collapsible-body" id="mbCopyBody"></div></details>
   `;
@@ -1983,8 +2064,6 @@ function renderMasterBookView(root, actions){
     });
   }
   wirePageNav('mbTop'); wirePageNav('mbBot');
-
-  document.getElementById('mbEditToggle').addEventListener('click', ()=>{ mbEditMode=!mbEditMode; renderView(); });
 
   document.getElementById('mbDuplicateAll').addEventListener('click', async ()=>{
     const nonEmpty = topLevelNotebooks().filter(n=>!n.excludeFromBook && subtreeHasContent(n));
@@ -2039,7 +2118,7 @@ function drawMbPage(){
   const page = mbPages[mbCurrentPage] || [];
   const q = mbSearchQuery || '';
   const linesWithQuery = page.map(l => l.kind==='para' ? Object.assign({}, l, {searchQuery:q}) : l);
-  content.innerHTML = linesWithQuery.length ? renderBookHtml(linesWithQuery, mbEditMode) : `<div class="empty">Nothing here yet.</div>`;
+  content.innerHTML = linesWithQuery.length ? renderBookHtml(linesWithQuery, true, true) : `<div class="empty">Nothing here yet.</div>`;
   ['mbTopPageIndicator','mbBotPageIndicator'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.textContent = `Page ${mbCurrentPage+1} of ${mbPages.length}`;
@@ -2319,11 +2398,18 @@ function renderGlobalSkippedView(root, actions){
       });
       renderSidebar(); renderView();
     });
-    const deleteAllBtn=document.createElement('button'); deleteAllBtn.className='btn btn-danger btn-sm'; deleteAllBtn.textContent='🗑 Delete ALL skipped';
+    const deleteAllBtn=document.createElement('button'); deleteAllBtn.className='btn btn-danger btn-sm'; deleteAllBtn.textContent='🗑 Clear ALL skipped';
     deleteAllBtn.addEventListener('click', async ()=>{
-      if(!confirm(`Trash all ${skipped.length} skipped benefits? Recoverable from Trash until emptied.`)) return;
-      for(const b of skipped){ b.trashed=true; await idbPut('benefits', b); }
-      pushUndo(`trashed ${skipped.length} skipped benefit(s)`, async ()=>{ for(const b of skipped){ b.trashed=false; await idbPut('benefits', b); } });
+      if(!confirm(`Remove all ${skipped.length} skipped benefit(s) from whichever category each is skipped in? Only ones not placed anywhere at all will be trashed.`)) return;
+      const undoData = [];
+      for(const b of skipped) undoData.push({id:b.id, results: await deleteSkippedEverywhere(b)});
+      pushUndo(`cleared ${skipped.length} skipped benefit(s)`, async ()=>{
+        for(const {id, results} of undoData){
+          const b = benefitById(id);
+          if(!b) continue;
+          for(const {scope, result} of results) await undoUnfile(b, scope, result);
+        }
+      });
       renderSidebar(); renderView();
     });
     actions.appendChild(restoreAllBtn); actions.appendChild(deleteAllBtn);
@@ -2394,11 +2480,12 @@ function renderSkippedGlobalRow(b){
       renderView();
     });
   });
-  const trashBtn=document.createElement('button'); trashBtn.className='icon-btn danger'; trashBtn.textContent='trash';
+  const trashBtn=document.createElement('button'); trashBtn.className='icon-btn danger'; trashBtn.textContent='clear skip(s)';
+  trashBtn.title="Remove this benefit from whichever category(ies) it's skipped in — only trashed if it isn't placed anywhere at all";
   trashBtn.addEventListener('click', async ()=>{
-    if(!confirm("Trash this benefit?")) return;
-    b.trashed=true; await idbPut('benefits',b);
-    pushUndo(`trashed a benefit`, async ()=>{ b.trashed=false; await idbPut('benefits', b); });
+    if(!confirm("Remove this benefit from whichever category it's skipped in? If it isn't placed anywhere yet, it'll be trashed instead.")) return;
+    const results = await deleteSkippedEverywhere(b);
+    pushUndo(`cleared skip(s) on a benefit`, async ()=>{ for(const {scope,result} of results) await undoUnfile(b, scope, result); });
     renderSidebar(); renderView();
   });
   const moveBtn=document.createElement('button'); moveBtn.className='icon-btn'; moveBtn.textContent='🔀 move/dup';
@@ -2558,6 +2645,7 @@ function renderAhRow(nb, depth, alreadySet){
       renderSidebar();
       renderAhTree(document.getElementById('ahSearch').value);
       refreshOpenBookIfNeeded();
+      renderView();
     });
   } else {
     row.style.cursor='pointer';
@@ -2567,6 +2655,7 @@ function renderAhRow(nb, depth, alreadySet){
       renderSidebar();
       renderAhTree(document.getElementById('ahSearch').value);
       refreshOpenBookIfNeeded();
+      renderView();
     });
   }
   return row;
@@ -2594,6 +2683,44 @@ function editBenefitInline(benefitId, pEl){
 }
 
 document.addEventListener('click', async (e)=>{
+  if(!e.target.closest('[data-role="rowmenu"]')){
+    document.querySelectorAll('.row-menu-wrap.open').forEach(w=>w.classList.remove('open'));
+  }
+  const toggleMenuBtn = e.target.closest('[data-action="toggle-menu"]');
+  if(toggleMenuBtn){
+    const wrap = toggleMenuBtn.closest('[data-role="rowmenu"]');
+    const wasOpen = wrap.classList.contains('open');
+    document.querySelectorAll('.row-menu-wrap.open').forEach(w=>w.classList.remove('open'));
+    if(!wasOpen) wrap.classList.add('open');
+    return;
+  }
+  const addHeadHereP = e.target.closest('[data-action="add-heading-here-p"]');
+  if(addHeadHereP){
+    const parentId = addHeadHereP.dataset.notebook || null;
+    const parent = parentId ? nbById(parentId) : null;
+    const name = prompt(parent?`New heading inside "${parent.name}":`:"New top-level book name:");
+    if(name && name.trim()){
+      const h = findOrCreateChildNotebook(parentId, name.trim());
+      pushUndo(`added heading "${h.name}"`, ()=>deleteNotebookAndDescendants(h.id));
+      afterMutation();
+    }
+    return;
+  }
+  const addBenHereP = e.target.closest('[data-action="add-benefit-here-p"]');
+  if(addBenHereP){
+    const parentId = addBenHereP.dataset.notebook || null;
+    if(!parentId){ alert("Can't add a benefit without a category to put it in — use Import Text instead."); return; }
+    const text = prompt("New benefit text:");
+    if(text && text.trim()){
+      let order = benefits.length ? Math.max(...benefits.map(x=>x.order))+1 : 0;
+      const nb = {id:uid('ben'), text:text.trim(), trashed:false, createdAt:Date.now(), order};
+      benefits.push(nb); await idbPut('benefits', nb);
+      const created = await confirmIntoNotebooks(nb.id, [parentId]);
+      pushUndo(`added a new benefit`, async ()=>{ await undoPlacements(created); await idbDelete('benefits', nb.id); benefits=benefits.filter(x=>x.id!==nb.id); });
+      afterMutation();
+    }
+    return;
+  }
   const addBtn = e.target.closest('[data-action="addhead"]');
   if(addBtn){ openAddHeadingsModal(addBtn.dataset.benefit); return; }
 
