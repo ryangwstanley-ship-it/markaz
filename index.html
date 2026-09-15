@@ -767,15 +767,17 @@ function detectAndSplitCards(text){
   const looksLikeTsv = /^#separator:tab/mi.test(text) || text.split(/\r\n|\r|\n/).some(l=>l.includes('\t'));
   return looksLikeTsv ? splitAnkiTsv(text) : splitFlashcards(text);
 }
-/* benefits placed directly in nb that have NOT yet been placed into any of nb's own children */
+/* benefits placed directly in nb that have NOT yet been placed into any of nb's own children.
+   If nb has no children at all, nothing here is "pending" — there's nothing to sort it into yet,
+   it's just finished content sitting in a leaf category. */
 function pendingForChildren(nb){
   const childIds = new Set(childrenOf(nb.id).map(c=>c.id));
+  if(childIds.size===0) return [];
   const placedInNb = notebookPlacementsIndex.get(nb.id) || [];
   const uniqueBenIds = [...new Set(placedInNb.map(p=>p.benefitId))];
   return uniqueBenIds.map(benefitById).filter(b=>{
     if(!b || b.trashed) return false;
     if(isSkipped(b,'hd::'+nb.id)) return false;
-    if(childIds.size===0) return true;
     return !(benefitPlacementsIndex.get(b.id)||[]).some(p=>childIds.has(p.notebookId));
   });
 }
@@ -995,15 +997,35 @@ function splitLines(text, dedupe, skipBlank){
   return lines;
 }
 
+/* A benefit block can end with a line like "###Fiqh > Purification > Wudu" — the full heading branch,
+   levels separated by ">". Everything before that line is the benefit text; that last line is stripped
+   out and returned separately as the path so the importer can file the benefit straight into it. */
+function extractHeadingPath(block){
+  const lines = block.split(/\r\n|\r|\n/);
+  let pathLine = -1;
+  for(let i=lines.length-1;i>=0;i--){ if(/^\s*###/.test(lines[i])){ pathLine = i; break; } }
+  if(pathLine===-1) return {text:block.trim(), path:null};
+  const path = lines[pathLine].replace(/^\s*###/,'').trim();
+  const text = lines.slice(0,pathLine).join('\n').trim();
+  return {text, path: path || null};
+}
+/* Walks/creates a full notebook chain from a "Category > Sub > Sub-sub" string and returns the leaf notebook. */
+function resolveNotebookPath(pathStr){
+  const parts = pathStr.split('>').map(s=>s.trim()).filter(Boolean);
+  let parentId = null, node = null;
+  for(const part of parts) node = findOrCreateChildNotebook(parentId, part), parentId = node.id;
+  return node;
+}
+
 /* ===================== IMPORT VIEW ===================== */
 function renderImportView(root, actions){
   document.getElementById('ctxTitle').textContent="Import Text";
-  document.getElementById('ctxSub').textContent="Only \"...\" starts a new benefit — line breaks stay inside the benefit";
+  document.getElementById('ctxSub').textContent="\"...\" starts a new benefit · a trailing \"### Category > Sub\" line auto-files it";
   root.innerHTML = `
     <div class="import-box">
       <div class="drop-zone" id="dropZone">Drop a .txt file here, or paste directly into the box below</div>
       <input type="file" id="fileInput" accept=".txt,text/plain" style="display:none;">
-      <textarea id="importText" placeholder="Paste your entire file here. A benefit ends only where you write three or more dots (...) — line breaks, tabs, and paragraph gaps stay inside the same benefit."></textarea>
+      <textarea id="importText" placeholder="Paste your entire file here. A benefit ends only where you write three or more dots (...) — line breaks, tabs, and paragraph gaps stay inside the same benefit.&#10;&#10;To auto-sort a benefit, end its block with a line starting with ### and the full heading branch, e.g.:&#10;&#10;بعض الفوائد هنا&#10;###الفقه > الطهارة > الوضوء&#10;...&#10;&#10;Benefits without a ### line are left pending in Triage as usual."></textarea>
       <div class="import-opts">
         <label><input type="checkbox" id="optDedupe"> Skip exact duplicate benefits</label>
         <label><input type="checkbox" id="optMinLen" checked> Skip empty / whitespace-only benefits</label>
@@ -1015,7 +1037,9 @@ function renderImportView(root, actions){
   const preview = document.getElementById('importPreview');
   function updatePreview(){
     const lines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
-    preview.textContent = lines.length + " benefit" + (lines.length===1?"":"s") + " detected";
+    const withPath = lines.filter(l=>extractHeadingPath(l).path).length;
+    preview.textContent = lines.length + " benefit" + (lines.length===1?"":"s") + " detected"
+      + (withPath ? ` — ${withPath} will auto-sort by heading, ${lines.length-withPath} left pending` : '');
   }
   ta.addEventListener('input', updatePreview);
   document.getElementById('optDedupe').addEventListener('change', updatePreview);
@@ -1034,16 +1058,24 @@ function renderImportView(root, actions){
     const r=new FileReader(); r.onload=(ev)=>{ ta.value=ev.target.result; updatePreview(); }; r.readAsText(f);
   });
   document.getElementById('doImportBtn').addEventListener('click', async ()=>{
-    const lines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
-    if(!lines.length){ alert("Nothing to import — paste some text first."); return; }
+    const rawLines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
+    if(!rawLines.length){ alert("Nothing to import — paste some text first."); return; }
     let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
-    for(const line of lines){
-      const b={id:uid('ben'), text:line, trashed:false, createdAt:Date.now(), order:order++};
+    let autoSorted = 0;
+    for(const block of rawLines){
+      const {text, path} = extractHeadingPath(block);
+      if(!text) continue;
+      const b={id:uid('ben'), text, trashed:false, createdAt:Date.now(), order:order++};
       benefits.push(b); await idbPut('benefits', b);
+      if(path){ const leaf = resolveNotebookPath(path); await confirmIntoNotebooks(b.id, [leaf.id]); autoSorted++; }
     }
     ta.value=""; updatePreview();
-    alert(`Imported ${lines.length} benefits. Now sort them with Triage: New Benefits.`);
-    switchView({type:'triage'});
+    const pending = rawLines.length - autoSorted;
+    alert(autoSorted
+      ? `Imported ${rawLines.length} benefit(s) — ${autoSorted} auto-sorted by heading, ${pending} left pending in Triage.`
+      : `Imported ${rawLines.length} benefits. Now sort them with Triage: New Benefits.`);
+    renderSidebar();
+    switchView(pending>0 ? {type:'triage'} : {type:'masterbook'});
   });
 }
 
@@ -1823,7 +1855,7 @@ function paraHtml(l, editMode, rtl){
         <button data-action="trash-benefit" data-benefit="${l.benefitId}" class="danger">🗑 Trash</button>` : '';
   const menu = `<span class="row-menu-wrap" data-role="rowmenu">
       <button class="icon-btn" data-action="toggle-menu" title="Options">⋮</button>
-      <div class="row-dropdown">
+      <span class="row-dropdown">
         <button data-action="edit-benefit" data-benefit="${l.benefitId}">✎ Edit</button>
         <button data-action="addhead" data-benefit="${l.benefitId}">🔀 Move / duplicate to another category…</button>
         <button data-action="add-heading-here-p" data-notebook="${l.notebookId||''}">＋ Add heading</button>
@@ -1833,7 +1865,7 @@ function paraHtml(l, editMode, rtl){
         <button data-action="hl-select" data-benefit="${l.benefitId}">🖍 Highlight selection</button>
         ${b && b.highlights && b.highlights.length ? `<button data-action="hl-clear" data-benefit="${l.benefitId}">🧹 Clear highlight</button>`:''}
         ${editExtras}
-      </div>
+      </span>
     </span>`;
   return `<p class="mb-para" data-benefit-line="${l.benefitId}" style="${rowStyle}">
     <span class="rd-num">${numDisplay}</span><span data-role="ptext">${displayHtml}</span>${menu}${annotationHtml}
@@ -1856,25 +1888,24 @@ function openReadView(nbId){
   openModal('modalRead');
 }
 
-/* ===================== Full Book: recursive walk of the real notebook tree — each heading appears exactly once,
-   numbered like an outline (1. / 1.1. / 1.1.4.) based on position among its non-empty siblings ===================== */
+/* ===================== Full Book: recursive walk of the real notebook tree — every heading appears exactly
+   once (even ones with nothing in them yet, so the outline is always complete and honest), numbered like
+   an outline (1. / 1.1. / 1.1.4.). Once a notebook has sub-headings, anything still sitting directly in it
+   is PENDING (not yet sorted into a sub-heading) and is deliberately left out of the printed book — it only
+   shows in the Needs Sub-Sorting tab, so a heading's page count always reflects real, finished content. ===================== */
 function buildFullBookLines(nb, depth, numberPath){
   let lines = [];
   const children = childrenOf(nb.id);
-  const childBenefitIds = new Set();
-  children.forEach(c => placementsForNotebook(c.id).forEach(p=>childBenefitIds.add(p.benefitId)));
-  const ownLeftovers = placementsForNotebook(nb.id).filter(p=>!childBenefitIds.has(p.benefitId));
-
-  const nonEmptyChildren = children.filter(c=>subtreeHasContent(c));
-  nonEmptyChildren.forEach((child,i)=>{
+  if(children.length===0){
+    /* Leaf heading — nothing to sort into, so everything placed here is finished content. */
+    placementsForNotebook(nb.id).forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text, depth, benefitId:p.benefitId, placementId:p.id, notebookId:nb.id}));
+    return lines;
+  }
+  children.forEach((child,i)=>{
     const path = [...numberPath, i+1];
     lines.push({kind:'heading', text:child.name, depth, numberLabel: path.join('.')+'.', nbId:child.id, parentNbId:nb.id});
     lines = lines.concat(buildFullBookLines(child, depth+1, path));
   });
-  if(ownLeftovers.length){
-    if(nonEmptyChildren.length) lines.push({kind:'heading', text:'Not yet given a heading', depth, numberLabel:null, nbId:null});
-    ownLeftovers.forEach(p=>lines.push({kind:'para', number:p.number, text:benefitById(p.benefitId).text, depth, benefitId:p.benefitId, placementId:p.id, notebookId:nb.id}));
-  }
   return lines;
 }
 function renderBookHtml(lines, editMode, rtl){
@@ -1887,11 +1918,11 @@ function renderBookHtml(lines, editMode, rtl){
     if(l.kind==='part'){
       const partMenu = editMode ? `<span class="row-menu-wrap" data-role="rowmenu">
         <button class="icon-btn" data-action="toggle-menu" title="Options">⋮</button>
-        <div class="row-dropdown">
+        <span class="row-dropdown">
           <button data-action="add-heading-here" data-notebook="${l.nbId}">＋ Add heading</button>
           <button data-action="rename-notebook" data-notebook="${l.nbId}">✎ Rename</button>
           <button data-action="dup-notebook" data-notebook="${l.nbId}">📋 Duplicate</button>
-        </div></span>` : '';
+        </span></span>` : '';
       const borderColor = rtl ? 'var(--amber)' : 'var(--line)';
       return `<div style="font-size:${sizes[0]}px; font-weight:${weights[0]}; margin:34px 0 10px; padding-bottom:8px; border-bottom:2px solid ${borderColor}; color:var(--ink); display:flex; justify-content:space-between; align-items:baseline;"><span>${escapeHtml(l.text)}</span><span>${partMenu}</span></div>`;
     }
@@ -1901,14 +1932,14 @@ function renderBookHtml(lines, editMode, rtl){
       const label = l.numberLabel ? (rtl?toArabicNumerals(l.numberLabel):l.numberLabel)+' ' : '';
       const headingMenu = (editMode && l.nbId) ? `<span class="row-menu-wrap" data-role="rowmenu">
         <button class="icon-btn" data-action="toggle-menu" title="Options">⋮</button>
-        <div class="row-dropdown">
+        <span class="row-dropdown">
           <button data-action="add-heading-here" data-notebook="${l.nbId}">＋ Add sub-heading</button>
           <button data-action="rename-notebook" data-notebook="${l.nbId}">✎ Rename</button>
           <button data-action="dup-notebook" data-notebook="${l.nbId}">📋 Duplicate</button>
           <button data-action="move-h-up" data-notebook="${l.nbId}">▲ Move up</button>
           <button data-action="move-h-down" data-notebook="${l.nbId}">▼ Move down</button>
           <button data-action="del-heading" data-notebook="${l.nbId}" class="danger">🗑 Delete</button>
-        </div></span>` : '';
+        </span></span>` : '';
       return `<div style="font-size:${size}px; font-weight:${weight}; margin:${Math.max(22-depth*3,10)}px 0 8px; margin-left:${indent}px; color:var(--ink); display:flex; align-items:baseline; gap:6px;"><span>${escapeHtml(label+l.text)}</span>${headingMenu}</div>`;
     }
     return paraHtml(l, editMode, rtl);
@@ -1999,7 +2030,6 @@ function buildMasterBookLines(){
   let lines = [];
   topLevelNotebooks().forEach(nb=>{
     if(nb.excludeFromBook) return;
-    if(!subtreeHasContent(nb)) return;
     lines.push({kind:'part', text:nb.name, nbId:nb.id});
     lines = lines.concat(buildFullBookLines(nb, 0, []));
   });
@@ -2018,7 +2048,7 @@ function renderMasterBookView(root, actions){
   document.getElementById('ctxTitle').textContent = "Master Book";
   computeMasterPages();
   const totalBenefits = mbAllLines.filter(l=>l.kind==='para').length;
-  document.getElementById('ctxSub').textContent = `${totalBenefits} benefit(s) · ${mbPages.length} page(s) · ${topLevelNotebooks().filter(n=>!n.excludeFromBook && subtreeHasContent(n)).length} book(s) combined`;
+  document.getElementById('ctxSub').textContent = `${totalBenefits} benefit(s) · ${mbPages.length} page(s) · ${topLevelNotebooks().filter(n=>!n.excludeFromBook).length} book(s) combined`;
 
   const pageNavHtml = (idPrefix)=>`
     <div class="triage-toolbar" style="justify-content:center;">
@@ -2042,7 +2072,7 @@ function renderMasterBookView(root, actions){
       <button class="btn btn-ghost btn-sm" id="mbExportAll">⬇ Export whole book (.txt)</button>
       <button class="btn btn-ghost btn-sm" id="mbPrintBtn">🖨 Print / Save as PDF</button>
     </div>
-    <details class="collapsible" id="mbTocDet"><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>!n.excludeFromBook && subtreeHasContent(n)).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
+    <details class="collapsible" id="mbTocDet"><summary>Table of Contents<span class="count-badge">${topLevelNotebooks().filter(n=>!n.excludeFromBook).length} book(s)</span></summary><div class="collapsible-body" id="mbToc"></div></details>
     <div class="hint" style="padding:8px 12px; background:var(--bg-raised); border:1px solid var(--amber); border-radius:6px;">Tap the ⋮ on any line for its options — edit, move/duplicate to another category, add a heading or benefit right here, favourite, or add a note. Everything here is the same underlying data as the individual books, so changes show up everywhere immediately.</div>
     ${pageNavHtml('mbTop')}
     <div class="read-doc mb-rtl" id="mbPageContent" dir="rtl" style="min-height:300px;"></div>
@@ -2082,7 +2112,6 @@ function renderMasterBookView(root, actions){
     function walkToc(parentId, depth){
       (parentId===null ? topLevelNotebooks() : childrenOf(parentId)).forEach(nb=>{
         if(nb.excludeFromBook) return;
-        if(!subtreeHasContent(nb)) return;
         const indent = '  '.repeat(depth);
         const range = formatPageRange(pageRanges.get(nb.id));
         const dots = '.'.repeat(Math.max(2, 44-depth*2-nb.name.length));
@@ -2172,8 +2201,7 @@ function renderMbToc(){
   function renderLevel(parentId, depth, container){
     (parentId===null ? topLevelNotebooks() : childrenOf(parentId)).forEach(nb=>{
       if(nb.excludeFromBook) return;
-      if(!subtreeHasContent(nb)) return;
-      const hasKids = childrenOf(nb.id).some(c=>subtreeHasContent(c));
+      const hasKids = childrenOf(nb.id).length>0;
       const expanded = mbTocExpanded.has(nb.id);
       const row = document.createElement('div');
       row.style.marginLeft = (depth*16)+'px';
