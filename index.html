@@ -145,6 +145,10 @@
   .mb-rtl .row-dropdown button{text-align:right;}
   .mb-rtl .organised-chip{font-family:var(--sans);}
 
+  /* brief flash so "Go to benefit" visibly confirms which row you landed on */
+  @keyframes flashLocate{ 0%{box-shadow:0 0 0 3px var(--teal); background:rgba(94,177,163,0.18);} 100%{box-shadow:0 0 0 0 transparent; background:transparent;} }
+  .flash-highlight{ animation: flashLocate 2s ease-out; border-radius:8px; }
+
   .skip-row{display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--line); font-size:13px;}
   .skip-row:last-child{border-bottom:none;}
   .skip-row .txt{flex:1; color:var(--ink-dim);}
@@ -988,10 +992,11 @@ function makeCopyBtn(text){
   return btn;
 }
 
-/* ===================== Benefit splitting: ONLY on runs of "..." (or the single ellipsis character) —
-   newlines, tabs, and paragraph breaks are kept as part of the benefit's own text ===================== */
+/* ===================== Benefit splitting: on runs of "..." (or the single ellipsis character), OR on a
+   numbered-list marker at the START of a line (e.g. "1. " / "12) " / Arabic-Indic "٣. ") — some source
+   material numbers entries sequentially instead of using dots. Line breaks inside an entry are always kept. ===================== */
 function splitLines(text, dedupe, skipBlank){
-  let lines = text.split(/\.{3,}|\u2026/);
+  let lines = text.split(/\.{3,}|\u2026|^[ \t]*[0-9٠-٩]+[.\)]\s+/gm);
   lines = skipBlank ? lines.map(l=>l.trim()).filter(l=>l.length>0) : lines.map(l=>l.trim());
   if(dedupe){ const seen=new Set(); lines = lines.filter(l=>{ if(seen.has(l)) return false; seen.add(l); return true; }); }
   return lines;
@@ -1020,25 +1025,28 @@ function resolveNotebookPath(pathStr){
 /* ===================== IMPORT VIEW ===================== */
 function renderImportView(root, actions){
   document.getElementById('ctxTitle').textContent="Import Text";
-  document.getElementById('ctxSub').textContent="\"...\" starts a new benefit · a trailing \"### Category > Sub\" line auto-files it";
+  document.getElementById('ctxSub').textContent="\"...\" or a numbered list (1. 2. 3.) starts a new entry · a trailing \"### Category > Sub\" line auto-files it";
   root.innerHTML = `
     <div class="import-box">
       <div class="drop-zone" id="dropZone">Drop a .txt file here, or paste directly into the box below</div>
       <input type="file" id="fileInput" accept=".txt,text/plain" style="display:none;">
-      <textarea id="importText" placeholder="Paste your entire file here. A benefit ends only where you write three or more dots (...) — line breaks, tabs, and paragraph gaps stay inside the same benefit.&#10;&#10;To auto-sort a benefit, end its block with a line starting with ### and the full heading branch, e.g.:&#10;&#10;بعض الفوائد هنا&#10;###الفقه > الطهارة > الوضوء&#10;...&#10;&#10;Benefits without a ### line are left pending in Triage as usual."></textarea>
+      <textarea id="importText" placeholder="Paste your entire file here. A new entry starts either at three or more dots (...) or at a numbered list marker (1. / 2) / ٣.) at the start of a line — line breaks, tabs, and paragraph gaps otherwise stay inside the same entry.&#10;&#10;To auto-sort an entry, end its block with a line starting with ### and the full heading branch, e.g.:&#10;&#10;بعض الفوائد هنا&#10;###الفقه > الطهارة > الوضوء&#10;...&#10;&#10;Entries without a ### line are left pending in Triage as usual."></textarea>
       <div class="import-opts">
-        <label><input type="checkbox" id="optDedupe"> Skip exact duplicate benefits</label>
-        <label><input type="checkbox" id="optMinLen" checked> Skip empty / whitespace-only benefits</label>
+        <label><input type="radio" name="importKind" id="kindBenefit" checked> 📖 Benefits</label>
+        <label><input type="radio" name="importKind" id="kindQuestion"> ❓ Questions</label>
+        <label><input type="checkbox" id="optDedupe"> Skip exact duplicates</label>
+        <label><input type="checkbox" id="optMinLen" checked> Skip empty / whitespace-only entries</label>
       </div>
-      <div class="import-preview" id="importPreview">0 benefits detected</div>
-      <button class="btn btn-primary" id="doImportBtn">Import as Benefits</button>
+      <div class="hint" style="margin:-4px 0 10px;">Questions are tagged with a ❓ badge everywhere they appear, but sort into the same categories and Master Book as Benefits — they're not archived separately like Flashcards are.</div>
+      <div class="import-preview" id="importPreview">0 entries detected</div>
+      <button class="btn btn-primary" id="doImportBtn">Import</button>
     </div>`;
   const ta = document.getElementById('importText');
   const preview = document.getElementById('importPreview');
   function updatePreview(){
     const lines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
     const withPath = lines.filter(l=>extractHeadingPath(l).path).length;
-    preview.textContent = lines.length + " benefit" + (lines.length===1?"":"s") + " detected"
+    preview.textContent = lines.length + " entr" + (lines.length===1?"y":"ies") + " detected"
       + (withPath ? ` — ${withPath} will auto-sort by heading, ${lines.length-withPath} left pending` : '');
   }
   ta.addEventListener('input', updatePreview);
@@ -1060,20 +1068,22 @@ function renderImportView(root, actions){
   document.getElementById('doImportBtn').addEventListener('click', async ()=>{
     const rawLines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
     if(!rawLines.length){ alert("Nothing to import — paste some text first."); return; }
+    const isQuestion = document.getElementById('kindQuestion').checked;
     let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
     let autoSorted = 0;
     for(const block of rawLines){
       const {text, path} = extractHeadingPath(block);
       if(!text) continue;
       const b={id:uid('ben'), text, trashed:false, createdAt:Date.now(), order:order++};
+      if(isQuestion) b.isQuestion = true;
       benefits.push(b); await idbPut('benefits', b);
       if(path){ const leaf = resolveNotebookPath(path); await confirmIntoNotebooks(b.id, [leaf.id]); autoSorted++; }
     }
     ta.value=""; updatePreview();
     const pending = rawLines.length - autoSorted;
     alert(autoSorted
-      ? `Imported ${rawLines.length} benefit(s) — ${autoSorted} auto-sorted by heading, ${pending} left pending in Triage.`
-      : `Imported ${rawLines.length} benefits. Now sort them with Triage: New Benefits.`);
+      ? `Imported ${rawLines.length} entr${rawLines.length===1?'y':'ies'} — ${autoSorted} auto-sorted by heading, ${pending} left pending in Triage.`
+      : `Imported ${rawLines.length} entries. Now sort them with Triage: New Benefits.`);
     renderSidebar();
     switchView(pending>0 ? {type:'triage'} : {type:'masterbook'});
   });
@@ -1764,16 +1774,21 @@ async function undoPlacements(createdPlacements){
 function renderPlacementRow(p, childIds, children){
   const b = benefitById(p.benefitId);
   const el = document.createElement('div'); el.className='placement-row';
+  el.dataset.benefitLine = b.id; el.dataset.notebookLine = p.notebookId;
   const myPlacements = placementsForBenefit(b.id);
   const organisedIn = children.filter(c=>myPlacements.some(pl=>pl.notebookId===c.id));
   if(b.favorite) el.style.cssText += 'border-left:2px solid var(--amber); background:rgba(212,162,76,0.07);';
   const bodyHtml = renderTextWithHighlights(b.text, b.highlights);
   const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
+  const questionBadge = b.isQuestion ? `<span class="chip" style="background:var(--purple);">❓ Question</span> ` : '';
   el.innerHTML = `<div class="placement-num">#${p.number}</div>
-    <div class="placement-body" data-role="body"><span data-role="ptext">${bodyHtml}</span>${organisedIn.length?`<div>${organisedIn.map(c=>`<span class="organised-chip">↳ ${escapeHtml(c.name)}</span>`).join(' ')}</div>`:''}${annotationHtml}</div>
+    <div class="placement-body" data-role="body">${questionBadge}<span data-role="ptext">${bodyHtml}</span>${organisedIn.length?`<div>${organisedIn.map(c=>`<span class="organised-chip">↳ ${escapeHtml(c.name)}</span>`).join(' ')}</div>`:''}${annotationHtml}</div>
     <div class="placement-actions"></div>`;
   const actions = el.querySelector('.placement-actions');
   actions.appendChild(makeCopyBtn(b.text));
+  const gotoBtn=document.createElement('button'); gotoBtn.className='icon-btn'; gotoBtn.textContent='📍 go to benefit';
+  gotoBtn.title='Jump to this exact spot in the Master Book';
+  gotoBtn.addEventListener('click', ()=>gotoBenefitInMasterBook(b.id, p.notebookId));
   const favBtn=document.createElement('button'); favBtn.className='icon-btn'+(b.favorite?' active':''); favBtn.textContent=b.favorite?'★':'☆';
   favBtn.title='Favourite'; favBtn.addEventListener('click', async ()=>{ b.favorite=!b.favorite; await idbPut('benefits', b); renderView(); });
   const noteBtn=document.createElement('button'); noteBtn.className='icon-btn'; noteBtn.textContent=b.annotation?'✎ edit note':'+ note';
@@ -1820,6 +1835,7 @@ function renderPlacementRow(p, childIds, children){
   const moveBtn=document.createElement('button'); moveBtn.className='icon-btn'; moveBtn.textContent='🔀 move/dup';
   moveBtn.title='Move or duplicate this benefit to any other category';
   moveBtn.addEventListener('click', ()=>openAddHeadingsModal(b.id));
+  actions.appendChild(gotoBtn);
   actions.appendChild(favBtn); actions.appendChild(noteBtn); actions.appendChild(upBtn); actions.appendChild(downBtn); actions.appendChild(hlBtn);
   if(clearHlBtn) actions.appendChild(clearHlBtn);
   actions.appendChild(editBtn); actions.appendChild(moveBtn); actions.appendChild(removeBtn); actions.appendChild(trashBtn);
@@ -1847,6 +1863,7 @@ function paraHtml(l, editMode, rtl){
     : `margin-left:${indent}px;`;
   const displayHtml = l.searchQuery ? highlightQuery(b?b.text:l.text, l.searchQuery) : renderTextWithHighlights(b?b.text:l.text, b?b.highlights:null);
   const annotationHtml = b && b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
+  const questionBadge = b && b.isQuestion ? `<span class="chip" style="background:var(--purple);">❓ Question</span>` : '';
   const numDisplay = rtl ? `${toArabicNumerals(l.number)}#` : `#${l.number}`;
   const editExtras = editMode ? `
         ${l.placementId?`<button data-action="move-p-up" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▲ Move up</button>
@@ -1857,6 +1874,7 @@ function paraHtml(l, editMode, rtl){
       <button class="icon-btn" data-action="toggle-menu" title="Options">⋮</button>
       <span class="row-dropdown">
         <button data-action="edit-benefit" data-benefit="${l.benefitId}">✎ Edit</button>
+        <button data-action="goto-notebook" data-benefit="${l.benefitId}" data-notebook="${l.notebookId||''}">📍 Go to benefit</button>
         <button data-action="addhead" data-benefit="${l.benefitId}">🔀 Move / duplicate to another category…</button>
         <button data-action="add-heading-here-p" data-notebook="${l.notebookId||''}">＋ Add heading</button>
         <button data-action="add-benefit-here-p" data-notebook="${l.notebookId||''}">＋ Add benefit</button>
@@ -1867,8 +1885,8 @@ function paraHtml(l, editMode, rtl){
         ${editExtras}
       </span>
     </span>`;
-  return `<p class="mb-para" data-benefit-line="${l.benefitId}" style="${rowStyle}">
-    <span class="rd-num">${numDisplay}</span><span data-role="ptext">${displayHtml}</span>${menu}${annotationHtml}
+  return `<p class="mb-para" data-benefit-line="${l.benefitId}" data-notebook-line="${l.notebookId||''}" style="${rowStyle}">
+    <span class="rd-num">${numDisplay}</span>${questionBadge}<span data-role="ptext">${displayHtml}</span>${menu}${annotationHtml}
   </p>`;
 }
 
@@ -2153,6 +2171,39 @@ function drawMbPage(){
     if(el) el.textContent = `Page ${mbCurrentPage+1} of ${mbPages.length}`;
   });
 }
+function flashLocate(selector){
+  setTimeout(()=>{
+    const el = document.querySelector(selector);
+    if(!el){ alert("Couldn't find that exact spot — it may have moved. Try again after the page settles."); return; }
+    el.scrollIntoView({behavior:'smooth', block:'center'});
+    el.classList.add('flash-highlight');
+    setTimeout(()=>el.classList.remove('flash-highlight'), 2200);
+  }, 60);
+}
+/* Jumps to this exact benefit+placement's spot in the Master Book (right page, scrolled + flashed). */
+function gotoBenefitInMasterBook(benefitId, notebookId){
+  switchView({type:'masterbook'});
+  computeMasterPages();
+  const idx = mbAllLines.findIndex(l=>l.kind==='para' && l.benefitId===benefitId && l.notebookId===notebookId);
+  if(idx===-1){
+    alert("This benefit isn't in the Master Book yet — it's likely still pending in Needs Sub-Sorting (a heading with sub-headings only prints benefits once they're filed into one).");
+    return;
+  }
+  let count = 0, pageIdx = 0;
+  for(let p=0;p<mbPages.length;p++){ if(idx < count+mbPages[p].length){ pageIdx=p; break; } count += mbPages[p].length; }
+  mbCurrentPage = pageIdx;
+  drawMbPage();
+  flashLocate(`[data-benefit-line="${benefitId}"][data-notebook-line="${notebookId}"]`);
+}
+/* Jumps to this exact benefit's row inside its category/heading notebook view. */
+function gotoBenefitInNotebook(benefitId, notebookId){
+  if(!notebookId){ alert("This benefit isn't filed in a category yet."); return; }
+  const list = placementsForNotebook(notebookId);
+  const idx = list.findIndex(p=>p.benefitId===benefitId);
+  switchView({type:'notebook', id:notebookId});
+  if(idx>=0 && idx>=notebookLimit){ notebookLimit = idx+20; renderView(); }
+  flashLocate(`[data-benefit-line="${benefitId}"][data-notebook-line="${notebookId}"]`);
+}
 
 /* Computes, for every heading/book, the full page span (first page to last page) covering
    itself and everything nested inside it — this is what lets the TOC show "Aqeedah (67-85)". */
@@ -2347,7 +2398,8 @@ function renderBenefitRow(b){
   const plc = placementsForBenefit(b.id);
   const chips = plc.map(p=>{ const nb=nbById(p.notebookId); return nb ? `<span class="chip" style="background:${nb.color}">${escapeHtml(nb.name)} #${p.number}</span>` : ''; }).join('');
   const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
-  el.innerHTML = `<div>${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div>${annotationHtml}<div class="row-actions"></div>`;
+  const questionBadge = b.isQuestion ? `<span class="chip" style="background:var(--purple);">❓ Question</span> ` : '';
+  el.innerHTML = `<div>${questionBadge}${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div>${annotationHtml}<div class="row-actions"></div>`;
   const actions = el.querySelector('.row-actions');
   actions.appendChild(makeCopyBtn(b.text));
   const favBtn=document.createElement('button'); favBtn.className='icon-btn'+(b.favorite?' active':''); favBtn.textContent=b.favorite?'★':'☆';
@@ -2751,6 +2803,9 @@ document.addEventListener('click', async (e)=>{
   }
   const addBtn = e.target.closest('[data-action="addhead"]');
   if(addBtn){ openAddHeadingsModal(addBtn.dataset.benefit); return; }
+
+  const gotoNbBtn = e.target.closest('[data-action="goto-notebook"]');
+  if(gotoNbBtn){ gotoBenefitInNotebook(gotoNbBtn.dataset.benefit, gotoNbBtn.dataset.notebook||null); return; }
 
   const hlSelectBtn = e.target.closest('[data-action="hl-select"]');
   if(hlSelectBtn){
