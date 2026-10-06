@@ -144,6 +144,9 @@
   .mb-rtl .row-dropdown{right:auto; left:0;}
   .mb-rtl .row-dropdown button{text-align:right;}
   .mb-rtl .organised-chip{font-family:var(--sans);}
+  .annotation-line{font-size:12px; color:var(--ink-faint); margin-top:4px;}
+  .mini-x{cursor:pointer; margin-left:5px; opacity:.6; font-size:11px;}
+  .mini-x:hover{opacity:1; color:var(--teal);}
 
   /* brief flash so "Go to benefit" visibly confirms which row you landed on */
   @keyframes flashLocate{ 0%{box-shadow:0 0 0 3px var(--teal); background:rgba(94,177,163,0.18);} 100%{box-shadow:0 0 0 0 transparent; background:transparent;} }
@@ -199,6 +202,7 @@
     <div class="nav-item" data-nav="importCards">🗂 Import Flashcards</div>
     <div class="nav-item" data-nav="triageCards">🗃 Triage: Flashcards<span class="badge" id="pendingCardsBadge">0</span></div>
     <div class="nav-item" data-nav="all">📚 All Benefits</div>
+    <div class="nav-item" data-nav="questions">❓ Questions<span class="badge" id="questionsBadge">0</span></div>
     <div class="nav-item" data-nav="needsSorting">📥 Needs Sub-Sorting<span class="badge" id="needsSortingBadge">0</span></div>
     <div class="nav-item" data-nav="skipped">⏭ Skipped<span class="badge" id="skippedBadge">0</span></div>
     <div class="nav-item" data-nav="trash">🗑 Trash</div>
@@ -423,6 +427,27 @@ function escapeHtml(s){ return (s||"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'
 const ARABIC_DIGITS = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
 function toArabicNumerals(s){ return String(s).replace(/[0-9]/g, d=>ARABIC_DIGITS[+d]); }
 
+/* Notes and questions are both lists now (not a single overwritable annotation) — "+ note" / "+ question"
+   always appends a new one; each line gets its own ✎ edit and ✕ remove via the delegated click handler. */
+async function addNoteToBenefit(b){
+  const val = prompt("Add a note:");
+  if(val && val.trim()){ b.notes = b.notes || []; b.notes.push(val.trim()); await idbPut('benefits', b); }
+}
+async function addQuestionToBenefit(b){
+  const val = prompt("Add a question:");
+  if(val && val.trim()){ b.questions = b.questions || []; b.questions.push(val.trim()); await idbPut('benefits', b); }
+}
+function notesQuestionsHtml(b){
+  let html = '';
+  (b.notes||[]).forEach((n,i)=>{
+    html += `<div class="annotation-line">note: ${escapeHtml(n)} <span class="mini-x" data-action="nq-edit" data-benefit="${b.id}" data-kind="note" data-idx="${i}" title="Edit">✎</span><span class="mini-x" data-action="nq-del" data-benefit="${b.id}" data-kind="note" data-idx="${i}" title="Remove">✕</span></div>`;
+  });
+  (b.questions||[]).forEach((q,i)=>{
+    html += `<div class="annotation-line">question: ${escapeHtml(q)} <span class="mini-x" data-action="nq-edit" data-benefit="${b.id}" data-kind="question" data-idx="${i}" title="Edit">✎</span><span class="mini-x" data-action="nq-del" data-benefit="${b.id}" data-kind="question" data-idx="${i}" title="Remove">✕</span></div>`;
+  });
+  return html;
+}
+
 /* ===================== Undo stack ===================== */
 let undoStack = [];
 function pushUndo(label, undoFn){ undoStack.push({label, undoFn}); if(undoStack.length>50) undoStack.shift(); updateUndoBtn(); }
@@ -465,6 +490,9 @@ async function boot(){
     if(b.trashed===undefined) b.trashed = false;
     if(b.order===undefined) b.order = 0;
     if(!Array.isArray(b.highlights)) b.highlights = [];
+    if(!Array.isArray(b.notes)) b.notes = b.annotation ? [b.annotation] : [];
+    if(!Array.isArray(b.questions)) b.questions = [];
+    if(b.annotation !== undefined) delete b.annotation;
   }
   for(const p of placements){
     if(p.number===undefined) p.number = 1;
@@ -504,6 +532,14 @@ function rebuildIndexes(){
   for(const arr of notebookPlacementsIndex.values()) arr.sort((a,b)=>a.number-b.number);
 }
 function nbById(id){ return notebooksIndex.get(id); }
+/* Full root-to-leaf path for the topbar, e.g. "الفقه > الطهارة > الحيض > بداية الحيض" — so you
+   always know which top-level book and parent headings a category belongs to, not just its own name. */
+function notebookBreadcrumb(nb){
+  const chain = [];
+  let cur = nb;
+  while(cur){ chain.unshift(cur.name); cur = cur.parentId ? nbById(cur.parentId) : null; }
+  return chain.join(' > ');
+}
 function benefitById(id){ return benefitsIndex.get(id); }
 function topLevelNotebooks(){ return notebooks.filter(n=>!n.parentId).sort((a,b)=>(a.order??a.createdAt)-(b.order??b.createdAt)); }
 function childrenOf(nbId){ return notebooks.filter(n=>n.parentId===nbId).sort((a,b)=>(a.order??a.createdAt)-(b.order??b.createdAt)); }
@@ -846,6 +882,7 @@ function renderSidebar(){
       (nav==='importCards'&&view.type==='importCards')||
       (nav==='triageCards'&&view.type==='triageCards')||
       (nav==='all'&&view.type==='all')||
+      (nav==='questions'&&view.type==='questions')||
       (nav==='needsSorting'&&view.type==='needsSorting')||
       (nav==='skipped'&&view.type==='skipped')||
       (nav==='trash'&&view.type==='trash')
@@ -857,6 +894,7 @@ function renderSidebar(){
       else if(nav==='importCards') switchView({type:'importCards'});
       else if(nav==='triageCards') switchView({type:'triageCards'});
       else if(nav==='all') switchView({type:'all'});
+      else if(nav==='questions') switchView({type:'questions'});
       else if(nav==='needsSorting') switchView({type:'needsSorting'});
       else if(nav==='skipped') switchView({type:'skipped'});
       else if(nav==='trash') switchView({type:'trash'});
@@ -866,6 +904,7 @@ function renderSidebar(){
   document.getElementById('pendingCardsBadge').textContent = pendingFlashcards().length;
   document.getElementById('skippedBadge').textContent = allSkippedBenefits().length;
   document.getElementById('needsSortingBadge').textContent = allPendingForHeadingsEverywhere().length;
+  document.getElementById('questionsBadge').textContent = benefits.filter(b=>!b.trashed && b.isQuestion).length;
 
   const wrap = document.getElementById('nbList');
   wrap.innerHTML="";
@@ -972,6 +1011,7 @@ function renderView(){
   else if(view.type==='triageCards') renderTriageCardsView(root, actions);
   else if(view.type==='notebook') renderNotebookView(root, actions, view.id);
   else if(view.type==='all') renderAllBenefitsView(root, actions);
+  else if(view.type==='questions') renderQuestionsView(root, actions);
   else if(view.type==='needsSorting') renderNeedsSortingView(root, actions);
   else if(view.type==='skipped') renderGlobalSkippedView(root, actions);
   else if(view.type==='trash') renderTrashView(root, actions);
@@ -1508,7 +1548,7 @@ async function undoPlacements(createdPlacements){
   const list = placementsForNotebook(nbId);
   const children = childrenOf(nbId);
   document.getElementById('ctxTitle').textContent = nb.name;
-  document.getElementById('ctxSub').textContent = list.length + " benefit"+(list.length===1?"":"s") + (children.length? ` · ${children.length} heading${children.length===1?'':'s'}`:'');
+  document.getElementById('ctxSub').textContent = notebookBreadcrumb(nb) + ` · ${list.length} benefit${list.length===1?'':'s'}` + (children.length? ` · ${children.length} heading${children.length===1?'':'s'}`:'');
 
   const readBtn=document.createElement('button'); readBtn.className='btn btn-ghost btn-sm'; readBtn.textContent='📖 Read view';
   readBtn.addEventListener('click', ()=>openReadView(nbId));
@@ -1779,11 +1819,11 @@ function renderPlacementRow(p, childIds, children){
   const organisedIn = children.filter(c=>myPlacements.some(pl=>pl.notebookId===c.id));
   if(b.favorite) el.style.cssText += 'border-left:2px solid var(--amber); background:rgba(212,162,76,0.07);';
   const bodyHtml = renderTextWithHighlights(b.text, b.highlights);
-  const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
   const questionBadge = b.isQuestion ? `<span class="chip" style="background:var(--purple);">❓ Question</span> ` : '';
   el.innerHTML = `<div class="placement-num">#${p.number}</div>
-    <div class="placement-body" data-role="body">${questionBadge}<span data-role="ptext">${bodyHtml}</span>${organisedIn.length?`<div>${organisedIn.map(c=>`<span class="organised-chip">↳ ${escapeHtml(c.name)}</span>`).join(' ')}</div>`:''}${annotationHtml}</div>
+    <div class="placement-body" data-role="body">${questionBadge}<span data-role="ptext">${bodyHtml}</span>${organisedIn.length?`<div>${organisedIn.map(c=>`<span class="organised-chip">↳ ${escapeHtml(c.name)}</span>`).join(' ')}</div>`:''}<div data-role="notesq">${notesQuestionsHtml(b)}</div></div>
     <div class="placement-actions"></div>`;
+  wireNotesQuestions(el.querySelector('[data-role="notesq"]'), b, ()=>renderView());
   const actions = el.querySelector('.placement-actions');
   actions.appendChild(makeCopyBtn(b.text));
   const gotoBtn=document.createElement('button'); gotoBtn.className='icon-btn'; gotoBtn.textContent='📍 go to benefit';
@@ -1791,11 +1831,12 @@ function renderPlacementRow(p, childIds, children){
   gotoBtn.addEventListener('click', ()=>gotoBenefitInMasterBook(b.id, p.notebookId));
   const favBtn=document.createElement('button'); favBtn.className='icon-btn'+(b.favorite?' active':''); favBtn.textContent=b.favorite?'★':'☆';
   favBtn.title='Favourite'; favBtn.addEventListener('click', async ()=>{ b.favorite=!b.favorite; await idbPut('benefits', b); renderView(); });
-  const noteBtn=document.createElement('button'); noteBtn.className='icon-btn'; noteBtn.textContent=b.annotation?'✎ edit note':'+ note';
-  noteBtn.addEventListener('click', async ()=>{
-    const val = prompt("Annotation for this benefit (shown as \"note: ...\" — leave empty to remove):", b.annotation||"");
-    if(val!==null){ b.annotation=val.trim(); await idbPut('benefits', b); renderView(); }
-  });
+  const noteBtn=document.createElement('button'); noteBtn.className='icon-btn'; noteBtn.textContent='+ note';
+  noteBtn.title='Add a note (keeps any existing ones)';
+  noteBtn.addEventListener('click', async ()=>{ await addNoteToBenefit(b); renderView(); });
+  const qBtn=document.createElement('button'); qBtn.className='icon-btn'; qBtn.textContent='+ question';
+  qBtn.title='Add a question about this benefit';
+  qBtn.addEventListener('click', async ()=>{ await addQuestionToBenefit(b); renderView(); });
   const upBtn=document.createElement('button'); upBtn.className='icon-btn'; upBtn.textContent='▲';
   upBtn.addEventListener('click', async ()=>{ await movePlacementSibling(p.notebookId, p.id, -1); renderView(); });
   const downBtn=document.createElement('button'); downBtn.className='icon-btn'; downBtn.textContent='▼';
@@ -1836,7 +1877,7 @@ function renderPlacementRow(p, childIds, children){
   moveBtn.title='Move or duplicate this benefit to any other category';
   moveBtn.addEventListener('click', ()=>openAddHeadingsModal(b.id));
   actions.appendChild(gotoBtn);
-  actions.appendChild(favBtn); actions.appendChild(noteBtn); actions.appendChild(upBtn); actions.appendChild(downBtn); actions.appendChild(hlBtn);
+  actions.appendChild(favBtn); actions.appendChild(noteBtn); actions.appendChild(qBtn); actions.appendChild(upBtn); actions.appendChild(downBtn); actions.appendChild(hlBtn);
   if(clearHlBtn) actions.appendChild(clearHlBtn);
   actions.appendChild(editBtn); actions.appendChild(moveBtn); actions.appendChild(removeBtn); actions.appendChild(trashBtn);
   return el;
@@ -1862,7 +1903,7 @@ function paraHtml(l, editMode, rtl){
     ? `margin-left:${Math.max(indent-8,0)}px; border-left:2px solid var(--amber); padding-left:8px; background:rgba(212,162,76,0.07); border-radius:0 6px 6px 0;`
     : `margin-left:${indent}px;`;
   const displayHtml = l.searchQuery ? highlightQuery(b?b.text:l.text, l.searchQuery) : renderTextWithHighlights(b?b.text:l.text, b?b.highlights:null);
-  const annotationHtml = b && b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
+  const annotationHtml = b ? notesQuestionsHtml(b) : '';
   const questionBadge = b && b.isQuestion ? `<span class="chip" style="background:var(--purple);">❓ Question</span>` : '';
   const numDisplay = rtl ? `${toArabicNumerals(l.number)}#` : `#${l.number}`;
   const editExtras = editMode ? `
@@ -1879,7 +1920,8 @@ function paraHtml(l, editMode, rtl){
         <button data-action="add-heading-here-p" data-notebook="${l.notebookId||''}">＋ Add heading</button>
         <button data-action="add-benefit-here-p" data-notebook="${l.notebookId||''}">＋ Add benefit</button>
         <button data-action="fav-benefit" data-benefit="${l.benefitId}">${isFav?'★':'☆'} Favourite</button>
-        <button data-action="annotate-benefit" data-benefit="${l.benefitId}">${b&&b.annotation?'✎ Edit note':'📝 Add note'}</button>
+        <button data-action="add-note-benefit" data-benefit="${l.benefitId}">📝 Add note</button>
+        <button data-action="add-question-benefit" data-benefit="${l.benefitId}">❓ Add question</button>
         <button data-action="hl-select" data-benefit="${l.benefitId}">🖍 Highlight selection</button>
         ${b && b.highlights && b.highlights.length ? `<button data-action="hl-clear" data-benefit="${l.benefitId}">🧹 Clear highlight</button>`:''}
         ${editExtras}
@@ -2392,24 +2434,69 @@ function renderAllBenefitsView(root, actions){
   favOnly.addEventListener('change', draw);
   draw();
 }
+function renderQuestionsView(root, actions){
+  document.getElementById('ctxTitle').textContent="Questions";
+  const active = benefits.filter(b=>!b.trashed && b.isQuestion);
+  document.getElementById('ctxSub').textContent = active.length+" total";
+
+  if(active.length>0){
+    const delAllBtn=document.createElement('button'); delAllBtn.className='btn btn-danger btn-sm'; delAllBtn.textContent='🗑 Trash ALL questions';
+    delAllBtn.addEventListener('click', async ()=>{
+      if(!confirm(`Move all ${active.length} questions to Trash? This clears every notebook too (placements stay only as history until you empty Trash).`)) return;
+      if(!confirm("Really sure? Type OK to confirm again.")) return;
+      for(const b of active){ b.trashed=true; await idbPut('benefits', b); }
+      renderSidebar(); renderView();
+    });
+    actions.appendChild(delAllBtn);
+  }
+
+  root.innerHTML = `<div class="triage-toolbar">
+      <input type="text" id="qSearch" placeholder="Search questions (harakat-insensitive)...">
+      <label class="chk"><input type="checkbox" id="qFavOnly"> ⭐ Favourites only</label>
+    </div><div id="qList"></div><div class="load-more-row" id="qLoadMore"></div>`;
+  const search = document.getElementById('qSearch');
+  const favOnly = document.getElementById('qFavOnly');
+  function draw(){
+    const q=search.value.trim();
+    let filtered = q ? active.filter(b=>matchesQuery(b.text,q)) : active;
+    if(favOnly.checked) filtered = filtered.filter(b=>b.favorite);
+    const listEl = document.getElementById('qList');
+    listEl.innerHTML="";
+    if(filtered.length===0){ listEl.innerHTML=`<div class="empty"><div class="big">${active.length===0?'❓':'▢'}</div><div>${active.length===0?"No questions imported yet — use Import Text with the Questions option.":"No matches."}</div></div>`; document.getElementById('qLoadMore').innerHTML=""; return; }
+    filtered.slice(0,allBenefitsLimit).forEach(b=>listEl.appendChild(renderBenefitRow(b)));
+    const lm=document.getElementById('qLoadMore'); lm.innerHTML="";
+    if(filtered.length>allBenefitsLimit){
+      const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm';
+      btn.textContent=`Load more (${filtered.length-allBenefitsLimit} remaining)`;
+      btn.addEventListener('click', ()=>{ allBenefitsLimit+=60; draw(); });
+      lm.appendChild(btn);
+    }
+  }
+  search.addEventListener('input', draw);
+  favOnly.addEventListener('change', draw);
+  draw();
+}
 function renderBenefitRow(b){
   const el=document.createElement('div'); el.className='benefit-row';
   if(b.favorite) el.style.cssText += 'border-left:2px solid var(--amber); background:rgba(212,162,76,0.07);';
   const plc = placementsForBenefit(b.id);
   const chips = plc.map(p=>{ const nb=nbById(p.notebookId); return nb ? `<span class="chip" style="background:${nb.color}">${escapeHtml(nb.name)} #${p.number}</span>` : ''; }).join('');
-  const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
   const questionBadge = b.isQuestion ? `<span class="chip" style="background:var(--purple);">❓ Question</span> ` : '';
-  el.innerHTML = `<div>${questionBadge}${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div>${annotationHtml}<div class="row-actions"></div>`;
+  el.innerHTML = `<div>${questionBadge}${escapeHtml(b.text)}</div><div class="benefit-chips">${chips || '<span class="hint">not placed anywhere yet</span>'}</div><div data-role="notesq">${notesQuestionsHtml(b)}</div><div class="row-actions"></div>`;
   const actions = el.querySelector('.row-actions');
   actions.appendChild(makeCopyBtn(b.text));
   const favBtn=document.createElement('button'); favBtn.className='icon-btn'+(b.favorite?' active':''); favBtn.textContent=b.favorite?'★':'☆';
   favBtn.addEventListener('click', async ()=>{ b.favorite=!b.favorite; await idbPut('benefits',b); renderView(); });
+  const noteBtn=document.createElement('button'); noteBtn.className='icon-btn'; noteBtn.textContent='+ note';
+  noteBtn.addEventListener('click', async ()=>{ await addNoteToBenefit(b); renderView(); });
+  const qBtn=document.createElement('button'); qBtn.className='icon-btn'; qBtn.textContent='+ question';
+  qBtn.addEventListener('click', async ()=>{ await addQuestionToBenefit(b); renderView(); });
   const trashBtn=document.createElement('button'); trashBtn.className='icon-btn danger'; trashBtn.textContent='trash';
   trashBtn.addEventListener('click', async ()=>{ if(!confirm("Trash this benefit?")) return; b.trashed=true; await idbPut('benefits',b); renderSidebar(); renderView(); });
   const moveBtn=document.createElement('button'); moveBtn.className='icon-btn'; moveBtn.textContent='🔀 move/dup';
   moveBtn.title='Move or duplicate this benefit to any other category';
   moveBtn.addEventListener('click', ()=>openAddHeadingsModal(b.id));
-  actions.appendChild(favBtn); actions.appendChild(moveBtn); actions.appendChild(trashBtn);
+  actions.appendChild(favBtn); actions.appendChild(noteBtn); actions.appendChild(qBtn); actions.appendChild(moveBtn); actions.appendChild(trashBtn);
   return el;
 }
 
@@ -2526,8 +2613,7 @@ function renderSkippedGlobalRow(b){
   const el = document.createElement('div'); el.className='benefit-row';
   if(b.favorite) el.style.cssText += 'border-left:2px solid var(--amber); background:rgba(212,162,76,0.07);';
   const scopeChips = (b.skippedScopes||[]).map(sk=>`<span class="chip" style="background:var(--blue);" data-scope="${escapeHtml(sk)}">${escapeHtml(scopeLabel(sk))} <span data-role="unskip" style="cursor:pointer; margin-left:4px;" title="Restore from this context">✕</span></span>`).join(' ');
-  const annotationHtml = b.annotation ? `<div class="annotation-line">note: ${escapeHtml(b.annotation)}</div>` : '';
-  el.innerHTML = `<div data-role="body">${escapeHtml(b.text)}</div><div class="benefit-chips">${scopeChips}</div><div class="hint" style="margin-top:6px;">Move to any category:</div><div data-role="choosers" style="margin-top:4px;"></div>${annotationHtml}<div class="row-actions"></div>`;
+  el.innerHTML = `<div data-role="body">${escapeHtml(b.text)}</div><div class="benefit-chips">${scopeChips}</div><div class="hint" style="margin-top:6px;">Move to any category:</div><div data-role="choosers" style="margin-top:4px;"></div><div data-role="notesq">${notesQuestionsHtml(b)}</div><div class="row-actions"></div>`;
   const choosersEl = el.querySelector('[data-role="choosers"]');
   const allCats = topLevelNotebooks().filter(n=>!n.isFlashcardArchive);
   choosersEl.appendChild(buildPillChooserEl(b, allCats, (name)=>findOrCreateChildNotebook(null, name)));
@@ -2543,11 +2629,10 @@ function renderSkippedGlobalRow(b){
   actions.appendChild(makeCopyBtn(b.text));
   const favBtn=document.createElement('button'); favBtn.className='icon-btn'+(b.favorite?' active':''); favBtn.textContent=b.favorite?'★':'☆';
   favBtn.addEventListener('click', async ()=>{ b.favorite=!b.favorite; await idbPut('benefits',b); renderView(); });
-  const noteBtn=document.createElement('button'); noteBtn.className='icon-btn'; noteBtn.textContent=b.annotation?'✎ edit note':'+ note';
-  noteBtn.addEventListener('click', async ()=>{
-    const val = prompt("Annotation (shown as \"note: ...\" — leave empty to remove):", b.annotation||"");
-    if(val!==null){ b.annotation=val.trim(); await idbPut('benefits', b); renderView(); }
-  });
+  const noteBtn=document.createElement('button'); noteBtn.className='icon-btn'; noteBtn.textContent='+ note';
+  noteBtn.addEventListener('click', async ()=>{ await addNoteToBenefit(b); renderView(); });
+  const qBtn=document.createElement('button'); qBtn.className='icon-btn'; qBtn.textContent='+ question';
+  qBtn.addEventListener('click', async ()=>{ await addQuestionToBenefit(b); renderView(); });
   const editBtn=document.createElement('button'); editBtn.className='icon-btn'; editBtn.textContent='edit';
   editBtn.addEventListener('click', ()=>{
     const body = el.querySelector('[data-role="body"]');
@@ -2571,7 +2656,7 @@ function renderSkippedGlobalRow(b){
   const moveBtn=document.createElement('button'); moveBtn.className='icon-btn'; moveBtn.textContent='🔀 move/dup';
   moveBtn.title='See every notebook this benefit is in, add to more, or remove from any';
   moveBtn.addEventListener('click', ()=>openAddHeadingsModal(b.id));
-  actions.appendChild(favBtn); actions.appendChild(noteBtn); actions.appendChild(editBtn); actions.appendChild(moveBtn); actions.appendChild(trashBtn);
+  actions.appendChild(favBtn); actions.appendChild(noteBtn); actions.appendChild(qBtn); actions.appendChild(editBtn); actions.appendChild(moveBtn); actions.appendChild(trashBtn);
   return el;
 }
 
@@ -2829,12 +2914,39 @@ document.addEventListener('click', async (e)=>{
     if(b){ b.favorite = !b.favorite; await idbPut('benefits', b); afterMutation(); }
     return;
   }
-  const annBtn = e.target.closest('[data-action="annotate-benefit"]');
-  if(annBtn){
-    const b = benefitById(annBtn.dataset.benefit);
+  const addNoteBtn = e.target.closest('[data-action="add-note-benefit"]');
+  if(addNoteBtn){
+    const b = benefitById(addNoteBtn.dataset.benefit);
+    if(b){ await addNoteToBenefit(b); afterMutation(); }
+    return;
+  }
+  const addQBtn = e.target.closest('[data-action="add-question-benefit"]');
+  if(addQBtn){
+    const b = benefitById(addQBtn.dataset.benefit);
+    if(b){ await addQuestionToBenefit(b); afterMutation(); }
+    return;
+  }
+  const nqEditBtn = e.target.closest('[data-action="nq-edit"]');
+  if(nqEditBtn){
+    const b = benefitById(nqEditBtn.dataset.benefit);
+    const kind = nqEditBtn.dataset.kind, idx = +nqEditBtn.dataset.idx;
     if(b){
-      const val = prompt("Annotation for this benefit (shown as \"note: ...\" — leave empty to remove):", b.annotation||"");
-      if(val!==null){ b.annotation = val.trim(); await idbPut('benefits', b); afterMutation(); }
+      const arr = kind==='note' ? (b.notes=b.notes||[]) : (b.questions=b.questions||[]);
+      const val = prompt(`Edit ${kind}:`, arr[idx]);
+      if(val!==null){
+        if(val.trim()) arr[idx] = val.trim(); else arr.splice(idx,1);
+        await idbPut('benefits', b); afterMutation();
+      }
+    }
+    return;
+  }
+  const nqDelBtn = e.target.closest('[data-action="nq-del"]');
+  if(nqDelBtn){
+    const b = benefitById(nqDelBtn.dataset.benefit);
+    const kind = nqDelBtn.dataset.kind, idx = +nqDelBtn.dataset.idx;
+    if(b){
+      const arr = kind==='note' ? (b.notes||[]) : (b.questions||[]);
+      if(confirm(`Remove this ${kind}?`)){ arr.splice(idx,1); await idbPut('benefits', b); afterMutation(); }
     }
     return;
   }
