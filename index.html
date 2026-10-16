@@ -214,6 +214,7 @@
       <button class="side-btn" id="undoBtn" disabled>↩ Undo last action</button>
       <button class="side-btn" id="statsBtn">▦ Dashboard</button>
       <button class="side-btn" id="dataBtn">⇅ Import / Export Backup</button>
+      <button class="side-btn" id="historyBtn">🕘 History / Restore points</button>
       <div class="theme-toggle">
         <span class="side-label" style="padding:0;">Theme</span>
         <div><button id="themeDark" class="btn-sm">Dark</button><button id="themeLight" class="btn-sm">Light</button></div>
@@ -274,6 +275,18 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalHistory">
+  <div class="modal wide">
+    <h3>History — restore points <button data-close>✕</button></h3>
+    <div class="modal-body">
+      <div class="hint">Saved automatically before risky actions, imports and resets, and every few minutes. They survive closing the site. 📌 = saved by you, never auto-deleted.</div>
+      <div class="mini-row"><input type="text" id="snapLabel" class="grow" placeholder="Name this restore point (optional)"><button class="btn btn-primary btn-sm" id="snapNowBtn">Save restore point now</button></div>
+      <div id="historyList" style="display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" data-close>Close</button></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalRead">
   <div class="modal wide print-target">
     <h3><span id="readTitle">Read view</span><button data-close>✕</button></h3>
@@ -309,7 +322,7 @@
 
 /* ===================== IndexedDB ===================== */
 /* IMPORTANT: this name must stay stable across every future edit/deploy — never rename it again. */
-const DB_NAME="LedgerBenefitsDB", DB_VERSION=1;
+const DB_NAME="LedgerBenefitsDB", DB_VERSION=2;
 let db;
 function idbOpen(){
   return new Promise((resolve,reject)=>{
@@ -318,6 +331,8 @@ function idbOpen(){
       const d=e.target.result;
       if(!d.objectStoreNames.contains('benefits')) d.createObjectStore('benefits',{keyPath:'id'});
       if(!d.objectStoreNames.contains('notebooks')) d.createObjectStore('notebooks',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('snapshots')) d.createObjectStore('snapshots',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('snapshotData')) d.createObjectStore('snapshotData',{keyPath:'id'});
       if(!d.objectStoreNames.contains('placements')){
         const s=d.createObjectStore('placements',{keyPath:'id'});
         s.createIndex('benefitId','benefitId');
@@ -420,7 +435,7 @@ function findOrCreateChildNotebook(parentId, name){
   const existing = notebooks.find(n=>n.parentId===parentId && n.name.trim().toLowerCase()===trimmed.toLowerCase());
   if(existing) return existing;
   const nb = {id:uid('nb'), name:trimmed, color:PALETTE[notebooks.length%PALETTE.length], parentId, nextNumber:1, createdAt:Date.now()};
-  notebooks.push(nb); idbPut('notebooks', nb);
+  notebooks.push(nb); notebooksIndex.set(nb.id, nb); idbPut('notebooks', nb);
   return nb;
 }
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -447,6 +462,87 @@ function notesQuestionsHtml(b){
   });
   return html;
 }
+
+/* ===================== Persistent history: restore points that survive reloads ===================== */
+const MAX_AUTO_SNAPSHOTS = 40;
+let lastSnapSig = '';
+function idbGet(store,id){ return new Promise((res,rej)=>{ const r=tx(store,'readonly').get(id); r.onsuccess=()=>res(r.result); r.onerror=(e)=>rej(e); }); }
+function idbReplaceAll(store, items){
+  return new Promise((res,rej)=>{
+    const t = db.transaction(store,'readwrite'); const s = t.objectStore(store);
+    s.clear(); items.forEach(i=>s.put(i));
+    t.oncomplete=()=>res(); t.onerror=(e)=>rej(e); t.onabort=(e)=>rej(e);
+  });
+}
+function snapshotNow(label, pinned){
+  const data = JSON.stringify({benefits, notebooks, placements}); // captured synchronously, before any change that follows
+  if(!pinned && (data===lastSnapSig || benefits.length===0)) return Promise.resolve();
+  lastSnapSig = data;
+  const now = Date.now();
+  const meta = {id:'snap_'+now.toString(36)+'_'+Math.random().toString(36).slice(2,6), createdAt:now, label, pinned:!!pinned,
+    counts:{benefits:benefits.filter(b=>!b.trashed).length, notebooks:notebooks.length, placements:placements.length}};
+  return (async()=>{
+    try{
+      await idbPut('snapshotData', {id:meta.id, data});
+      await idbPut('snapshots', meta);
+      const auto = (await idbGetAll('snapshots')).filter(m=>!m.pinned).sort((a,b)=>b.createdAt-a.createdAt);
+      for(const old of auto.slice(MAX_AUTO_SNAPSHOTS)){ await idbDelete('snapshots', old.id); await idbDelete('snapshotData', old.id); }
+    }catch(e){ console.error('snapshot failed', e); }
+  })();
+}
+async function initHistory(){
+  try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+  try{
+    const metas = (await idbGetAll('snapshots')).sort((a,b)=>b.createdAt-a.createdAt);
+    if(metas[0]){ const rec = await idbGet('snapshotData', metas[0].id); if(rec) lastSnapSig = rec.data; }
+  }catch(e){}
+  setInterval(()=>snapshotNow('Auto-save'), 5*60*1000);
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') snapshotNow('Auto-save (left the page)'); });
+}
+async function restoreSnapshot(id){
+  const rec = await idbGet('snapshotData', id);
+  if(!rec){ alert("That restore point's data is missing."); return; }
+  await snapshotNow('Before restore');
+  const snap = JSON.parse(rec.data);
+  benefits = snap.benefits||[]; notebooks = snap.notebooks||[]; placements = snap.placements||[];
+  await idbReplaceAll('benefits', benefits);
+  await idbReplaceAll('notebooks', notebooks);
+  await idbReplaceAll('placements', placements);
+  lastSnapSig = rec.data;
+  undoStack = []; expandedNbIds = new Set();
+  closeModal('modalHistory');
+  switchView({type:'masterbook'});
+}
+async function renderHistory(){
+  const listEl = document.getElementById('historyList');
+  const metas = (await idbGetAll('snapshots')).sort((a,b)=>b.createdAt-a.createdAt);
+  listEl.innerHTML = metas.length ? '' : '<div class="hint">No restore points yet.</div>';
+  metas.forEach(m=>{
+    const when = new Date(m.createdAt).toLocaleString();
+    const row = document.createElement('div'); row.className='mini-row';
+    row.innerHTML = `<span class="grow">${m.pinned?'📌 ':''}${escapeHtml(m.label)}<div class="hint">${when} · ${m.counts.benefits} benefits · ${m.counts.notebooks} notebooks · ${m.counts.placements} placements</div></span>`;
+    const rb = document.createElement('button'); rb.className='btn btn-primary btn-sm'; rb.textContent='Restore';
+    rb.addEventListener('click', async ()=>{
+      if(!confirm(`Restore the version from ${when}? Your current state is saved as a restore point first, so this can be undone.`)) return;
+      await restoreSnapshot(m.id);
+    });
+    const del = document.createElement('button'); del.className='icon-btn danger'; del.textContent='🗑';
+    del.addEventListener('click', async ()=>{
+      if(!confirm("Delete this restore point?")) return;
+      await idbDelete('snapshots', m.id); await idbDelete('snapshotData', m.id); renderHistory();
+    });
+    row.appendChild(rb); row.appendChild(del); listEl.appendChild(row);
+  });
+}
+document.getElementById('historyBtn').addEventListener('click', async ()=>{ await renderHistory(); openModal('modalHistory'); });
+document.getElementById('snapNowBtn').addEventListener('click', async ()=>{
+  const inp = document.getElementById('snapLabel');
+  await snapshotNow(inp.value.trim()||'Manual restore point', true);
+  inp.value=''; renderHistory();
+});
+/* every "Are you sure?" confirmation now saves a restore point first — covers trash, clear, range remove, delete heading, empty trash, etc. */
+const _nativeConfirm = window.confirm.bind(window);
+window.confirm = function(msg){ const ok = _nativeConfirm(msg); if(ok) snapshotNow('Before: '+String(msg).slice(0,80)); return ok; };
 
 /* ===================== Undo stack ===================== */
 let undoStack = [];
@@ -505,6 +601,8 @@ async function boot(){
     }
   }
 
+  await initHistory();
+  snapshotNow('Session start');
   const savedTheme = localStorage.getItem('ledger_theme');
   if(savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeButtons();
@@ -1110,6 +1208,7 @@ function renderImportView(root, actions){
     if(!rawLines.length){ alert("Nothing to import — paste some text first."); return; }
     const isQuestion = document.getElementById('kindQuestion').checked;
     let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
+    await snapshotNow('Before import ('+rawLines.length+' entries)');
     let autoSorted = 0;
     for(const block of rawLines){
       const {text, path} = extractHeadingPath(block);
@@ -1540,7 +1639,6 @@ async function undoPlacements(createdPlacements){
     placements = placements.filter(x=>x.id!==pl.id);
   }
 }
-
 /* ===================== NOTEBOOK VIEW ===================== */
  function renderNotebookView(root, actions, nbId){
   const nb = nbById(nbId);
@@ -2750,6 +2848,7 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
 document.getElementById('fullResetBtn').addEventListener('click', async ()=>{
   const typed = prompt(`This permanently deletes every benefit, notebook, and placement — everything, with no recovery. Type DELETE to confirm.`);
   if(typed !== 'DELETE'){ if(typed!==null) alert("Didn't match — nothing was deleted."); return; }
+  await snapshotNow('Before full reset', true);
   for(const p of placements) await idbDelete('placements', p.id);
   for(const b of benefits) await idbDelete('benefits', b.id);
   for(const nb of notebooks) await idbDelete('notebooks', nb.id);
