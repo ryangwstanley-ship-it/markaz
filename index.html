@@ -266,6 +266,7 @@
       <div class="mini-row"><span class="grow">Export everything (JSON)</span><button class="btn btn-ghost btn-sm" id="exportAllBtn">Export</button></div>
       <div class="mini-row"><span class="grow">Import from JSON backup (merge)</span><button class="btn btn-ghost btn-sm" id="importBtn">Choose file</button></div>
       <input type="file" id="importFile" accept="application/json" style="display:none;">
+      <div class="mini-row"><span class="grow">Merge duplicate benefits (keeps one copy of each)</span><button class="btn btn-ghost btn-sm" id="mergeDupBtn">Merge</button></div>
       <div class="mini-row" style="border-color:var(--red);">
         <span class="grow">⚠ Delete everything and start fresh (full reset)</span>
         <button class="btn btn-danger btn-sm" id="fullResetBtn">Reset</button>
@@ -543,6 +544,53 @@ document.getElementById('snapNowBtn').addEventListener('click', async ()=>{
 /* every "Are you sure?" confirmation now saves a restore point first — covers trash, clear, range remove, delete heading, empty trash, etc. */
 const _nativeConfirm = window.confirm.bind(window);
 window.confirm = function(msg){ const ok = _nativeConfirm(msg); if(ok) snapshotNow('Before: '+String(msg).slice(0,80)); return ok; };
+
+/* ===================== Duplicate cleanup + "send everything waiting to أخرى" ===================== */
+function normKey(s){ return normalizeSimple(s||'').replace(/\s+/g,' ').trim(); }
+async function mergeDuplicates(){
+  const groups = new Map();
+  for(const b of benefits){
+    if(b.trashed) continue;
+    const k = normKey(b.text); if(!k) continue;
+    if(!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(b);
+  }
+  const dupGroups = [...groups.values()].filter(g=>g.length>1);
+  const extra = dupGroups.reduce((s,g)=>s+g.length-1,0);
+  if(!extra){ alert("No duplicates found."); return; }
+  if(!confirm(`Found ${extra} duplicate cop${extra===1?'y':'ies'} of ${dupGroups.length} benefit(s). Keep one of each (preferring the copy already filed in a finished heading) and move the rest to Trash? A restore point is saved first.`)) return;
+  rebuildIndexes();
+  const leafPlaced = b => placementsForBenefit(b.id).some(p=>childrenOf(p.notebookId).length===0) ? 1 : 0;
+  for(const g of dupGroups){
+    g.sort((a,b)=> (leafPlaced(b)-leafPlaced(a)) || (placementsForBenefit(b.id).length-placementsForBenefit(a.id).length) || (a.createdAt-b.createdAt));
+    const keep = g[0];
+    const keepNbs = new Set(placementsForBenefit(keep.id).map(p=>p.notebookId));
+    for(const d of g.slice(1)){
+      for(const p of placementsForBenefit(d.id)){
+        if(childrenOf(p.notebookId).length===0 && !keepNbs.has(p.notebookId)){ await confirmIntoNotebooks(keep.id,[p.notebookId]); keepNbs.add(p.notebookId); }
+      }
+      if(d.favorite) keep.favorite = true;
+      (d.notes||[]).forEach(n=>{ keep.notes = keep.notes||[]; if(!keep.notes.includes(n)) keep.notes.push(n); });
+      (d.questions||[]).forEach(q=>{ keep.questions = keep.questions||[]; if(!keep.questions.includes(q)) keep.questions.push(q); });
+      if(d.isQuestion) keep.isQuestion = true;
+      d.trashed = true; await idbPut('benefits', d);
+    }
+    await idbPut('benefits', keep);
+  }
+  rebuildIndexes(); renderSidebar(); renderView();
+  alert(`Done — ${extra} duplicate cop${extra===1?'y':'ies'} moved to Trash.`);
+}
+async function sendAllPendingToOther(){
+  const all = allPendingForHeadingsEverywhere();
+  if(!all.length){ alert("Nothing waiting."); return; }
+  if(!confirm(`Move all ${all.length} waiting benefit(s) into an "أخرى" sub-heading under whichever heading each one sits in, so they show in the Master Book? You can sort them out of "أخرى" later.`)) return;
+  for(const {benefit, notebook} of all){
+    const other = findOrCreateChildNotebook(notebook.id, 'أخرى');
+    await confirmIntoNotebooks(benefit.id, [other.id]);
+  }
+  rebuildIndexes(); renderSidebar(); renderView();
+}
+document.getElementById('mergeDupBtn').addEventListener('click', async ()=>{ closeModal('modalData'); await mergeDuplicates(); });
 
 /* ===================== Undo stack ===================== */
 let undoStack = [];
@@ -1174,6 +1222,7 @@ function renderImportView(root, actions){
         <label><input type="radio" name="importKind" id="kindQuestion"> ❓ Questions</label>
         <label><input type="checkbox" id="optDedupe"> Skip exact duplicates</label>
         <label><input type="checkbox" id="optMinLen" checked> Skip empty / whitespace-only entries</label>
+        <label><input type="checkbox" id="optUpdate" checked> Update existing copies instead of adding duplicates (re-files them by the ### path)</label>
       </div>
       <div class="hint" style="margin:-4px 0 10px;">Questions are tagged with a ❓ badge everywhere they appear, but sort into the same categories and Master Book as Benefits — they're not archived separately like Flashcards are.</div>
       <div class="import-preview" id="importPreview">0 entries detected</div>
@@ -1209,22 +1258,46 @@ function renderImportView(root, actions){
     const isQuestion = document.getElementById('kindQuestion').checked;
     let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
     await snapshotNow('Before import ('+rawLines.length+' entries)');
-    let autoSorted = 0;
+    const updateExisting = document.getElementById('optUpdate').checked;
+    const existingByKey = new Map();
+    if(updateExisting){ for(const x of benefits){ if(x.trashed) continue; const k = normKey(x.text); if(k && !existingByKey.has(k)) existingByKey.set(k, x); } }
+    let added = 0, updated = 0, skippedDup = 0, pendingNew = 0;
     for(const block of rawLines){
       const {text, path} = extractHeadingPath(block);
       if(!text) continue;
+      let leaf = null;
+      if(path){
+        leaf = resolveNotebookPath(path);
+        /* if that heading has sub-headings, file into its "أخرى" so the benefit shows in the Master Book instead of hiding in Needs Sub-Sorting */
+        if(childrenOf(leaf.id).length>0) leaf = findOrCreateChildNotebook(leaf.id, 'أخرى');
+      }
+      const key = updateExisting ? normKey(text) : null;
+      const existing = key ? existingByKey.get(key) : null;
+      if(existing){
+        if(isQuestion) existing.isQuestion = true;
+        if(leaf){
+          for(const p of placementsForBenefit(existing.id)) await idbDelete('placements', p.id);
+          placements = placements.filter(p=>p.benefitId!==existing.id);
+          existing.skippedScopes = [];
+          await idbPut('benefits', existing);
+          await confirmIntoNotebooks(existing.id, [leaf.id]);
+          updated++;
+        } else { await idbPut('benefits', existing); skippedDup++; }
+        rebuildIndexes();
+        continue;
+      }
       const b={id:uid('ben'), text, trashed:false, createdAt:Date.now(), order:order++};
       if(isQuestion) b.isQuestion = true;
       benefits.push(b); await idbPut('benefits', b);
-      if(path){ const leaf = resolveNotebookPath(path); await confirmIntoNotebooks(b.id, [leaf.id]); autoSorted++; }
+      if(leaf){ await confirmIntoNotebooks(b.id, [leaf.id]); } else { pendingNew++; }
+      if(key) existingByKey.set(key, b);
+      added++;
+      rebuildIndexes();
     }
     ta.value=""; updatePreview();
-    const pending = rawLines.length - autoSorted;
-    alert(autoSorted
-      ? `Imported ${rawLines.length} entr${rawLines.length===1?'y':'ies'} — ${autoSorted} auto-sorted by heading, ${pending} left pending in Triage.`
-      : `Imported ${rawLines.length} entries. Now sort them with Triage: New Benefits.`);
+    alert(`Done — ${added} new, ${updated} existing re-filed by heading, ${skippedDup} duplicate(s) skipped. ${pendingNew} left pending in Triage.`);
     renderSidebar();
-    switchView(pending>0 ? {type:'triage'} : {type:'masterbook'});
+    switchView(pendingNew>0 ? {type:'triage'} : {type:'masterbook'});
   });
 }
 
@@ -1639,6 +1712,7 @@ async function undoPlacements(createdPlacements){
     placements = placements.filter(x=>x.id!==pl.id);
   }
 }
+
 /* ===================== NOTEBOOK VIEW ===================== */
  function renderNotebookView(root, actions, nbId){
   const nb = nbById(nbId);
@@ -1921,7 +1995,6 @@ function renderPlacementRow(p, childIds, children){
   el.innerHTML = `<div class="placement-num">#${p.number}</div>
     <div class="placement-body" data-role="body">${questionBadge}<span data-role="ptext">${bodyHtml}</span>${organisedIn.length?`<div>${organisedIn.map(c=>`<span class="organised-chip">↳ ${escapeHtml(c.name)}</span>`).join(' ')}</div>`:''}<div data-role="notesq">${notesQuestionsHtml(b)}</div></div>
     <div class="placement-actions"></div>`;
-  wireNotesQuestions(el.querySelector('[data-role="notesq"]'), b, ()=>renderView());
   const actions = el.querySelector('.placement-actions');
   actions.appendChild(makeCopyBtn(b.text));
   const gotoBtn=document.createElement('button'); gotoBtn.className='icon-btn'; gotoBtn.textContent='📍 go to benefit';
@@ -2606,6 +2679,11 @@ function renderNeedsSortingView(root, actions){
   const all = allPendingForHeadingsEverywhere();
   const nbCount = new Set(all.map(x=>x.notebook.id)).size;
   document.getElementById('ctxSub').textContent = `${all.length} benefit(s) waiting to be sorted into a heading, across ${nbCount} notebook(s)`;
+  const mergeBtn=document.createElement('button'); mergeBtn.className='btn btn-ghost btn-sm'; mergeBtn.textContent='🧹 Merge duplicates';
+  mergeBtn.addEventListener('click', mergeDuplicates);
+  const otherBtn=document.createElement('button'); otherBtn.className='btn btn-primary btn-sm'; otherBtn.textContent='📥 Send ALL to "أخرى"';
+  otherBtn.addEventListener('click', sendAllPendingToOther);
+  actions.appendChild(mergeBtn); actions.appendChild(otherBtn);
 
   root.innerHTML = `<div class="triage-toolbar"><input type="text" id="nsSearch" placeholder="Search everything waiting to be sorted..."></div><div id="nsGroups"></div>`;
   const search = document.getElementById('nsSearch');
@@ -3171,3 +3249,5 @@ boot().catch(showFatalError);
 </script>
 </body>
 </html>
+
+  
