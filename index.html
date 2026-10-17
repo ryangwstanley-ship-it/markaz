@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -285,6 +286,18 @@
       <div id="historyList" style="display:flex; flex-direction:column; gap:6px;"></div>
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" data-close>Close</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalSortExport">
+  <div class="modal wide">
+    <h3>Export for sorting <button data-close>✕</button></h3>
+    <div class="modal-body">
+      <div class="hint" id="sortExportSummary"></div>
+      <div class="mini-row"><span class="grow hint">Characters per part (smaller = easier to paste into a chat)</span><input type="text" id="sortChunkInput" value="30000" style="width:70px; text-align:center;"></div>
+      <div id="sortExportList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="sortDownloadBtn">⬇ Download everything (.txt)</button><button class="btn btn-ghost" data-close>Close</button></div>
   </div>
 </div>
 
@@ -591,6 +604,73 @@ async function sendAllPendingToOther(){
   rebuildIndexes(); renderSidebar(); renderView();
 }
 document.getElementById('mergeDupBtn').addEventListener('click', async ()=>{ closeModal('modalData'); await mergeDuplicates(); });
+
+/* ===================== "(needs sorting)" category + export of everything that needs sorting ===================== */
+const NEEDS_SORTING_NAME = 'غير مصنّف (needs sorting)';
+function needsSortingNotebook(){ return findOrCreateChildNotebook(null, NEEDS_SORTING_NAME); }
+function buildSortExport(){
+  const toc=[];
+  (function walk(parentId, depth){
+    (parentId===null ? topLevelNotebooks() : childrenOf(parentId)).forEach(nb=>{
+      if(nb.excludeFromBook || (depth===0 && nb.name===NEEDS_SORTING_NAME)) return;
+      toc.push('  '.repeat(depth)+nb.name);
+      walk(nb.id, depth+1);
+    });
+  })(null,0);
+  const seen=new Set(), items=[];
+  const add=(b,path)=>{ if(!b||b.trashed||seen.has(b.id)) return; seen.add(b.id); items.push({b,path}); };
+  allPendingForHeadingsEverywhere().forEach(({benefit,notebook})=>add(benefit, notebookBreadcrumb(notebook)));
+  const ns = notebooks.find(n=>!n.parentId && n.name===NEEDS_SORTING_NAME);
+  if(ns) placementsForNotebook(ns.id).forEach(p=>add(benefitById(p.benefitId), ''));
+  pendingForTopLevelTriage().forEach(b=>add(b,''));
+  const mk = list => list.map(({b,path})=>b.text.trim()+'\n###'+path);
+  return {toc, ben: mk(items.filter(x=>!x.b.isQuestion)), qs: mk(items.filter(x=>x.b.isQuestion))};
+}
+function sortExportChunks(limit){
+  const {toc, ben, qs} = buildSortExport();
+  const head = '=== TABLE OF CONTENTS (use these exact heading names; indentation = sub-heading level; a heading that has sub-headings below it cannot hold benefits directly) ===\n'
+    + toc.join('\n')
+    + '\n\n=== INSTRUCTIONS ===\nEach entry below ends with a ### line. Replace it with the full heading path, e.g. ###الفقه > الطهارة > التيمم > متى يباح التيمم . Entries are separated by lines containing "...". Add a new sub-heading only if nothing in the table of contents fits.\n\n';
+  const pieces=[];
+  ben.forEach((t,i)=>pieces.push(i===0 ? `=== BENEFITS TO SORT (${ben.length}) ===\n`+t : t));
+  qs.forEach((t,i)=>pieces.push(i===0 ? `=== QUESTIONS TO SORT (${qs.length}) — import these with the Questions option ===\n`+t : t));
+  const chunks=[]; let cur=head, has=false;
+  pieces.forEach(p=>{
+    const sep = has ? '\n...\n' : '';
+    if(has && cur.length+sep.length+p.length>limit){ chunks.push(cur); cur=''; has=false; }
+    cur += (has ? '\n...\n' : '') + p; has=true;
+  });
+  chunks.push(cur);
+  return {chunks: chunks.map((c,i)=>`=== PART ${i+1} of ${chunks.length} ===\n`+c), counts:{ben:ben.length, qs:qs.length}};
+}
+function openSortExport(){
+  const input=document.getElementById('sortChunkInput');
+  const draw=()=>{
+    const limit=Math.max(5000, parseInt(input.value,10)||30000);
+    const {chunks,counts}=sortExportChunks(limit);
+    document.getElementById('sortExportSummary').textContent=`${counts.ben} benefit(s) + ${counts.qs} question(s) to sort · ${chunks.length} part(s). Part 1 includes the table of contents.`;
+    const list=document.getElementById('sortExportList'); list.innerHTML='';
+    const copied=new Set();
+    chunks.forEach((c,i)=>{
+      const row=document.createElement('div'); row.className='mini-row';
+      row.innerHTML=`<span class="grow">Part ${i+1} of ${chunks.length} (${c.length.toLocaleString()} characters)</span>`;
+      const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm'; btn.textContent='📋 Copy';
+      btn.addEventListener('click', ()=>{
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(c).then(()=>{ btn.textContent='Copied ✓'; btn.className='btn btn-primary btn-sm'; }).catch(()=>alert("Couldn't copy — clipboard access may be blocked. Use the download button instead."));
+        } else alert("Clipboard not available in this browser — use the download button instead.");
+      });
+      row.appendChild(btn); list.appendChild(row);
+    });
+    document.getElementById('sortDownloadBtn').onclick=()=>{
+      const blob=new Blob(["\uFEFF"+chunks.join('\n\n')],{type:'text/plain;charset=utf-8'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='needs-sorting-export.txt'; a.click();
+    };
+  };
+  const test=sortExportChunks(30000).counts;
+  if(!test.ben && !test.qs){ alert("Nothing needs sorting right now."); return; }
+  input.oninput=draw; draw(); openModal('modalSortExport');
+}
 
 /* ===================== Undo stack ===================== */
 let undoStack = [];
@@ -1216,7 +1296,7 @@ function renderImportView(root, actions){
     <div class="import-box">
       <div class="drop-zone" id="dropZone">Drop a .txt file here, or paste directly into the box below</div>
       <input type="file" id="fileInput" accept=".txt,text/plain" style="display:none;">
-      <textarea id="importText" placeholder="Paste your entire file here. A new entry starts either at three or more dots (...) or at a numbered list marker (1. / 2) / ٣.) at the start of a line — line breaks, tabs, and paragraph gaps otherwise stay inside the same entry.&#10;&#10;To auto-sort an entry, end its block with a line starting with ### and the full heading branch, e.g.:&#10;&#10;بعض الفوائد هنا&#10;###الفقه > الطهارة > الوضوء&#10;...&#10;&#10;Entries without a ### line are left pending in Triage as usual."></textarea>
+      <textarea id="importText" placeholder="Paste your entire file here. A new entry starts either at three or more dots (...) or at a numbered list marker (1. / 2) / ٣.) at the start of a line — line breaks, tabs, and paragraph gaps otherwise stay inside the same entry.&#10;&#10;To auto-sort an entry, end its block with a line starting with ### and the full heading branch, e.g.:&#10;&#10;بعض الفوائد هنا&#10;###الفقه > الطهارة > الوضوء&#10;...&#10;&#10;Entries without a ### line are filed under the category (needs sorting) in the Master Book."></textarea>
       <div class="import-opts">
         <label><input type="radio" name="importKind" id="kindBenefit" checked> 📖 Benefits</label>
         <label><input type="radio" name="importKind" id="kindQuestion"> ❓ Questions</label>
@@ -1234,7 +1314,7 @@ function renderImportView(root, actions){
     const lines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
     const withPath = lines.filter(l=>extractHeadingPath(l).path).length;
     preview.textContent = lines.length + " entr" + (lines.length===1?"y":"ies") + " detected"
-      + (withPath ? ` — ${withPath} will auto-sort by heading, ${lines.length-withPath} left pending` : '');
+      + (withPath ? ` — ${withPath} will auto-sort by heading, ${lines.length-withPath} will be filed under needs sorting` : '');
   }
   ta.addEventListener('input', updatePreview);
   document.getElementById('optDedupe').addEventListener('change', updatePreview);
@@ -1266,7 +1346,8 @@ function renderImportView(root, actions){
       const {text, path} = extractHeadingPath(block);
       if(!text) continue;
       let leaf = null;
-      if(path){
+      if(!path) leaf = needsSortingNotebook();
+      else {
         leaf = resolveNotebookPath(path);
         /* if that heading has sub-headings, file into its "أخرى" so the benefit shows in the Master Book instead of hiding in Needs Sub-Sorting */
         if(childrenOf(leaf.id).length>0) leaf = findOrCreateChildNotebook(leaf.id, 'أخرى');
@@ -1275,7 +1356,7 @@ function renderImportView(root, actions){
       const existing = key ? existingByKey.get(key) : null;
       if(existing){
         if(isQuestion) existing.isQuestion = true;
-        if(leaf){
+        if(leaf && path){
           for(const p of placementsForBenefit(existing.id)) await idbDelete('placements', p.id);
           placements = placements.filter(p=>p.benefitId!==existing.id);
           existing.skippedScopes = [];
@@ -1289,15 +1370,16 @@ function renderImportView(root, actions){
       const b={id:uid('ben'), text, trashed:false, createdAt:Date.now(), order:order++};
       if(isQuestion) b.isQuestion = true;
       benefits.push(b); await idbPut('benefits', b);
-      if(leaf){ await confirmIntoNotebooks(b.id, [leaf.id]); } else { pendingNew++; }
+      await confirmIntoNotebooks(b.id, [leaf.id]);
+      if(!path) pendingNew++;
       if(key) existingByKey.set(key, b);
       added++;
       rebuildIndexes();
     }
     ta.value=""; updatePreview();
-    alert(`Done — ${added} new, ${updated} existing re-filed by heading, ${skippedDup} duplicate(s) skipped. ${pendingNew} left pending in Triage.`);
+    alert(`Done — ${added} new, ${updated} existing re-filed by heading, ${skippedDup} duplicate(s) skipped. ${pendingNew} had no ### heading and were filed under "${NEEDS_SORTING_NAME}" (visible in the Master Book).`);
     renderSidebar();
-    switchView(pendingNew>0 ? {type:'triage'} : {type:'masterbook'});
+    switchView({type:'masterbook'});
   });
 }
 
@@ -1527,11 +1609,24 @@ function renderSkippedBlock(container, scopeKey, onRestore){
   container.appendChild(det);
 }
 
+
+
+
 /* ===================== TRIAGE VIEW (top-level sort) ===================== */
 function renderTriageView(root, actions){
   document.getElementById('ctxTitle').textContent = "Triage: New Benefits";
   const pending = pendingForTopLevelTriage();
   document.getElementById('ctxSub').textContent = pending.length + " pending";
+  if(pending.length){
+    const nsBtn=document.createElement('button'); nsBtn.className='btn btn-primary btn-sm'; nsBtn.textContent='📥 Move all to (needs sorting)';
+    nsBtn.addEventListener('click', async ()=>{
+      if(!confirm(`File all ${pending.length} unsorted benefit(s) under "${NEEDS_SORTING_NAME}" so they show in the Master Book?`)) return;
+      const ns=needsSortingNotebook();
+      for(const b of pending) await confirmIntoNotebooks(b.id,[ns.id]);
+      rebuildIndexes(); renderSidebar(); renderView();
+    });
+    actions.appendChild(nsBtn);
+  }
 
   const nbs = topLevelNotebooks();
   root.innerHTML = `<div class="triage-toolbar"><input type="text" id="triageSearch" placeholder="Search pending text..."></div><div id="rangeBarHolder"></div><div id="triageList"></div><div class="load-more-row" id="triageLoadMore"></div><div id="skipHolder"></div>`;
@@ -2683,7 +2778,9 @@ function renderNeedsSortingView(root, actions){
   mergeBtn.addEventListener('click', mergeDuplicates);
   const otherBtn=document.createElement('button'); otherBtn.className='btn btn-primary btn-sm'; otherBtn.textContent='📥 Send ALL to "أخرى"';
   otherBtn.addEventListener('click', sendAllPendingToOther);
-  actions.appendChild(mergeBtn); actions.appendChild(otherBtn);
+  const exportBtn=document.createElement('button'); exportBtn.className='btn btn-primary btn-sm'; exportBtn.textContent='⬇ Export for sorting';
+  exportBtn.addEventListener('click', openSortExport);
+  actions.appendChild(exportBtn); actions.appendChild(mergeBtn); actions.appendChild(otherBtn);
 
   root.innerHTML = `<div class="triage-toolbar"><input type="text" id="nsSearch" placeholder="Search everything waiting to be sorted..."></div><div id="nsGroups"></div>`;
   const search = document.getElementById('nsSearch');
@@ -3249,5 +3346,3 @@ boot().catch(showFatalError);
 </script>
 </body>
 </html>
-
-  
