@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ledger — Benefit Sorter</title>
+<title>Ledger — Benefit Sorter · v1.1.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -207,6 +206,7 @@
     <div class="nav-item" data-nav="needsSorting">📥 Needs Sub-Sorting<span class="badge" id="needsSortingBadge">0</span></div>
     <div class="nav-item" data-nav="skipped">⏭ Skipped<span class="badge" id="skippedBadge">0</span></div>
     <div class="nav-item" data-nav="trash">🗑 Trash</div>
+    <div class="nav-item" data-nav="history">🕘 History</div>
 
     <div class="side-label">Notebooks<button id="addNbBtn">+</button></div>
     <div id="nbList"></div>
@@ -215,7 +215,7 @@
       <button class="side-btn" id="undoBtn" disabled>↩ Undo last action</button>
       <button class="side-btn" id="statsBtn">▦ Dashboard</button>
       <button class="side-btn" id="dataBtn">⇅ Import / Export Backup</button>
-      <button class="side-btn" id="historyBtn">🕘 History / Restore points</button>
+      
       <div class="theme-toggle">
         <span class="side-label" style="padding:0;">Theme</span>
         <div><button id="themeDark" class="btn-sm">Dark</button><button id="themeLight" class="btn-sm">Light</button></div>
@@ -232,7 +232,7 @@
       <div class="topbar-right" id="topbarActions"></div>
     </div>
     <div class="wrap" id="viewRoot"></div>
-    <footer>LEDGER · INDEXEDDB · HEADINGS ARE NOTEBOOKS · TRUE NESTED TREE</footer>
+    <footer>LEDGER · VERSION 1.1.0 · INDEXEDDB · HEADINGS ARE NOTEBOOKS · TRUE NESTED TREE</footer>
   </div>
 </div>
 
@@ -336,7 +336,7 @@
 
 /* ===================== IndexedDB ===================== */
 /* IMPORTANT: this name must stay stable across every future edit/deploy — never rename it again. */
-const DB_NAME="LedgerBenefitsDB", DB_VERSION=2;
+const DB_NAME="LedgerBenefitsDB", DB_VERSION=3;
 let db;
 function idbOpen(){
   return new Promise((resolve,reject)=>{
@@ -347,6 +347,7 @@ function idbOpen(){
       if(!d.objectStoreNames.contains('notebooks')) d.createObjectStore('notebooks',{keyPath:'id'});
       if(!d.objectStoreNames.contains('snapshots')) d.createObjectStore('snapshots',{keyPath:'id'});
       if(!d.objectStoreNames.contains('snapshotData')) d.createObjectStore('snapshotData',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('changeLog')) d.createObjectStore('changeLog',{keyPath:'id'});
       if(!d.objectStoreNames.contains('placements')){
         const s=d.createObjectStore('placements',{keyPath:'id'});
         s.createIndex('benefitId','benefitId');
@@ -359,8 +360,56 @@ function idbOpen(){
 }
 function tx(store,mode){ return db.transaction(store,mode).objectStore(store); }
 function idbGetAll(store){ return new Promise((res,rej)=>{ const r=tx(store,'readonly').getAll(); r.onsuccess=()=>res(r.result); r.onerror=(e)=>rej(e); }); }
-function idbPut(store,obj){ return new Promise((res,rej)=>{ const r=tx(store,'readwrite').put(obj); r.onsuccess=()=>res(obj); r.onerror=(e)=>rej(e); }); }
-function idbDelete(store,id){ return new Promise((res,rej)=>{ const r=tx(store,'readwrite').delete(id); r.onsuccess=()=>res(); r.onerror=(e)=>rej(e); }); }
+let changeTrackingEnabled = false;
+const AUDITED_STORES = new Set(['benefits','notebooks','placements']);
+function idbPutRaw(store,obj){ return new Promise((res,rej)=>{ const t=db.transaction(store,'readwrite'); t.objectStore(store).put(obj); t.oncomplete=()=>res(obj); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error); }); }
+function idbDeleteRaw(store,id){ return new Promise((res,rej)=>{ const t=db.transaction(store,'readwrite'); t.objectStore(store).delete(id); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error); }); }
+function changeDescription(store,before,after){
+  const item=after||before||{};
+  if(store==='benefits'){
+    if(!before) return 'Added benefit: '+String(item.text||'').slice(0,90);
+    if(!after) return 'Permanently deleted benefit: '+String(item.text||'').slice(0,90);
+    const fields=[['text','Edited benefit text'],['favorite','Changed favourite status'],['trashed','Changed benefit trash status'],['notes','Changed benefit notes'],['questions','Changed benefit questions'],['highlights','Changed text highlights'],['skippedScopes','Changed skipped status'],['isQuestion','Changed benefit type'],['isFlashcard','Changed flashcard status']];
+    for(const [key,label] of fields) if(JSON.stringify(before[key])!==JSON.stringify(after[key])) return label+': '+String(after.text||before.text||'').slice(0,75);
+    return 'Updated benefit: '+String(item.text||'').slice(0,90);
+  }
+  if(store==='notebooks'){
+    if(!before) return 'Created notebook: '+(item.name||'');
+    if(!after) return 'Deleted notebook: '+(item.name||'');
+    if(before.name!==after.name) return 'Renamed notebook: '+before.name+' → '+after.name;
+    if(before.parentId!==after.parentId) return 'Moved notebook: '+(after.name||'');
+    if(before.order!==after.order) return 'Reordered notebook: '+(after.name||'');
+    return 'Updated notebook: '+(after.name||'');
+  }
+  const placement=after||before||{};
+  const relatedBenefit=benefits.find(b=>b.id===placement.benefitId);
+  const relatedNotebook=notebooks.find(n=>n.id===placement.notebookId);
+  const benefitLabel=relatedBenefit?String(relatedBenefit.text||'').slice(0,65):'benefit';
+  const notebookLabel=relatedNotebook?relatedNotebook.name:'notebook';
+  if(!before) return 'Filed “'+benefitLabel+'” in '+notebookLabel;
+  if(!after) return 'Removed “'+benefitLabel+'” from '+notebookLabel;
+  if(before.notebookId!==after.notebookId) return 'Moved “'+benefitLabel+'” to '+notebookLabel;
+  if(before.number!==after.number) return 'Reordered “'+benefitLabel+'” in '+notebookLabel;
+  return 'Updated placement for “'+benefitLabel+'” in '+notebookLabel;
+}
+async function recordChange(store,id,before,after){
+  if(!changeTrackingEnabled || !AUDITED_STORES.has(store)) return;
+  const entry={id:'chg_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),createdAt:Date.now(),store,recordId:id,description:changeDescription(store,before,after),before:before?JSON.parse(JSON.stringify(before)):null,after:after?JSON.parse(JSON.stringify(after)):null};
+  await idbPutRaw('changeLog',entry);
+}
+async function idbPut(store,obj){
+  const track=changeTrackingEnabled && AUDITED_STORES.has(store);
+  const before=track?await idbGet(store,obj.id):null;
+  await idbPutRaw(store,obj);
+  if(track && JSON.stringify(before)!==JSON.stringify(obj)) await recordChange(store,obj.id,before,obj);
+  return obj;
+}
+async function idbDelete(store,id){
+  const track=changeTrackingEnabled && AUDITED_STORES.has(store);
+  const before=track?await idbGet(store,id):null;
+  await idbDeleteRaw(store,id);
+  if(track && before) await recordChange(store,id,before,null);
+}
 
 async function migrateOldDatabases(){
   if(localStorage.getItem('ledger_migrated_v1')) return;
@@ -548,7 +597,7 @@ async function renderHistory(){
     row.appendChild(rb); row.appendChild(del); listEl.appendChild(row);
   });
 }
-document.getElementById('historyBtn').addEventListener('click', async ()=>{ await renderHistory(); openModal('modalHistory'); });
+
 document.getElementById('snapNowBtn').addEventListener('click', async ()=>{
   const inp = document.getElementById('snapLabel');
   await snapshotNow(inp.value.trim()||'Manual restore point', true);
@@ -557,6 +606,57 @@ document.getElementById('snapNowBtn').addEventListener('click', async ()=>{
 /* every "Are you sure?" confirmation now saves a restore point first — covers trash, clear, range remove, delete heading, empty trash, etc. */
 const _nativeConfirm = window.confirm.bind(window);
 window.confirm = function(msg){ const ok = _nativeConfirm(msg); if(ok) snapshotNow('Before: '+String(msg).slice(0,80)); return ok; };
+
+
+async function restoreChange(entryId){
+  const entry=await idbGet('changeLog',entryId);
+  if(!entry){ alert('This history entry is no longer available.'); return; }
+  const current=await idbGet(entry.store,entry.recordId);
+  if(entry.before) await idbPutRaw(entry.store,entry.before);
+  else await idbDeleteRaw(entry.store,entry.recordId);
+  const reverse={id:'chg_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),createdAt:Date.now(),store:entry.store,recordId:entry.recordId,description:'Restored previous state: '+entry.description,before:current?JSON.parse(JSON.stringify(current)):null,after:entry.before?JSON.parse(JSON.stringify(entry.before)):null};
+  await idbPutRaw('changeLog',reverse);
+  benefits=await idbGetAll('benefits'); notebooks=await idbGetAll('notebooks'); placements=await idbGetAll('placements');
+  rebuildIndexes(); renderSidebar(); renderView();
+}
+async function renderHistoryView(root,actions){
+  document.getElementById('ctxTitle').textContent='History';
+  document.getElementById('ctxSub').textContent='Every recorded database change';
+  actions.innerHTML='<button class="btn btn-primary btn-sm" id="historySnapshotBtn">＋ Save restore point</button>';
+  root.innerHTML='<div class="hint" style="margin-bottom:10px;">Each entry records the exact item state before and after a change. Restore reverses that individual change. Older automatic restore points remain below. History entries are not automatically deleted.</div><div id="changeHistoryList" style="display:flex;flex-direction:column;gap:7px;"></div><h3 style="margin:24px 0 10px;">Older restore points</h3><div id="legacyHistoryList" style="display:flex;flex-direction:column;gap:7px;"></div>';
+  document.getElementById('historySnapshotBtn').onclick=async()=>{
+    const label=prompt('Name this restore point:','Manual restore point');
+    if(label===null) return;
+    await snapshotNow(label.trim()||'Manual restore point',true); renderHistoryView(root,actions);
+  };
+  const changes=(await idbGetAll('changeLog')).sort((a,b)=>b.createdAt-a.createdAt);
+  const list=document.getElementById('changeHistoryList');
+  if(!changes.length) list.innerHTML='<div class="hint">No individual changes have been recorded yet. Changes made from this version onward will appear here.</div>';
+  for(const entry of changes){
+    const row=document.createElement('div'); row.className='mini-row'; row.style.alignItems='flex-start';
+    const info=document.createElement('div'); info.className='grow';
+    const title=document.createElement('div'); title.textContent=entry.description;
+    const meta=document.createElement('div'); meta.className='hint'; meta.textContent=new Date(entry.createdAt).toLocaleString()+' · '+entry.store;
+    info.append(title,meta);
+    const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm'; btn.textContent='Restore';
+    btn.onclick=async()=>{
+      if(!confirm('Reverse this specific change? A new history entry will be created so this restoration can itself be reversed.')) return;
+      await restoreChange(entry.id); renderHistoryView(root,actions);
+    };
+    row.append(info,btn); list.appendChild(row);
+  }
+  const legacy=document.getElementById('legacyHistoryList');
+  const metas=(await idbGetAll('snapshots')).sort((a,b)=>b.createdAt-a.createdAt);
+  if(!metas.length) legacy.innerHTML='<div class="hint">No older restore points.</div>';
+  for(const m of metas){
+    const row=document.createElement('div'); row.className='mini-row';
+    const info=document.createElement('span'); info.className='grow';
+    info.textContent=(m.pinned?'📌 ':'')+m.label+' · '+new Date(m.createdAt).toLocaleString();
+    const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm'; btn.textContent='Restore';
+    btn.onclick=async()=>{ if(confirm('Restore this complete saved version? Your current state will first be saved.')) await restoreSnapshot(m.id); };
+    row.append(info,btn); legacy.appendChild(row);
+  }
+}
 
 /* ===================== Duplicate cleanup + "send everything waiting to أخرى" ===================== */
 function normKey(s){ return normalizeSimple(s||'').replace(/\s+/g,' ').trim(); }
@@ -657,7 +757,8 @@ function openSortExport(){
       const btn=document.createElement('button'); btn.className='btn btn-ghost btn-sm'; btn.textContent='📋 Copy';
       btn.addEventListener('click', ()=>{
         if(navigator.clipboard && navigator.clipboard.writeText){
-          navigator.clipboard.writeText(c).then(()=>{ btn.textContent='Copied ✓'; btn.className='btn btn-primary btn-sm'; }).catch(()=>alert("Couldn't copy — clipboard access may be blocked. Use the download button instead."));
+
+                  navigator.clipboard.writeText(c).then(()=>{ btn.textContent='Copied ✓'; btn.className='btn btn-primary btn-sm'; }).catch(()=>alert("Couldn't copy — clipboard access may be blocked. Use the download button instead."));
         } else alert("Clipboard not available in this browser — use the download button instead.");
       });
       row.appendChild(btn); list.appendChild(row);
@@ -730,7 +831,8 @@ async function boot(){
   }
 
   await initHistory();
-  snapshotNow('Session start');
+  await snapshotNow('Session start');
+  changeTrackingEnabled = true;
   const savedTheme = localStorage.getItem('ledger_theme');
   if(savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeButtons();
@@ -1111,7 +1213,8 @@ function renderSidebar(){
       (nav==='questions'&&view.type==='questions')||
       (nav==='needsSorting'&&view.type==='needsSorting')||
       (nav==='skipped'&&view.type==='skipped')||
-      (nav==='trash'&&view.type==='trash')
+      (nav==='trash'&&view.type==='trash')||
+      (nav==='history'&&view.type==='history')
     );
     el.onclick = ()=>{
       if(nav==='import') switchView({type:'import'});
@@ -1124,6 +1227,7 @@ function renderSidebar(){
       else if(nav==='needsSorting') switchView({type:'needsSorting'});
       else if(nav==='skipped') switchView({type:'skipped'});
       else if(nav==='trash') switchView({type:'trash'});
+      else if(nav==='history') switchView({type:'history'});
     };
   });
   document.getElementById('pendingBadge').textContent = pendingForTopLevelTriage().length;
@@ -1241,6 +1345,7 @@ function renderView(){
   else if(view.type==='needsSorting') renderNeedsSortingView(root, actions);
   else if(view.type==='skipped') renderGlobalSkippedView(root, actions);
   else if(view.type==='trash') renderTrashView(root, actions);
+  else if(view.type==='history') renderHistoryView(root, actions);
   window.scrollTo(0, scrollY);
 }
 
@@ -1609,9 +1714,6 @@ function renderSkippedBlock(container, scopeKey, onRestore){
   container.appendChild(det);
 }
 
-
-
-
 /* ===================== TRIAGE VIEW (top-level sort) ===================== */
 function renderTriageView(root, actions){
   document.getElementById('ctxTitle').textContent = "Triage: New Benefits";
@@ -1622,7 +1724,7 @@ function renderTriageView(root, actions){
     nsBtn.addEventListener('click', async ()=>{
       if(!confirm(`File all ${pending.length} unsorted benefit(s) under "${NEEDS_SORTING_NAME}" so they show in the Master Book?`)) return;
       const ns=needsSortingNotebook();
-      for(const b of pending) await confirmIntoNotebooks(b.id,[ns.id]);
+            for(const b of pending) await confirmIntoNotebooks(b.id,[ns.id]);
       rebuildIndexes(); renderSidebar(); renderView();
     });
     actions.appendChild(nsBtn);
@@ -2455,7 +2557,7 @@ function renderMasterBookView(root, actions){
     });
 
     const txt = toc + body;
-    const blob = new Blob(["\uFEFF"+txt],{type:'text/plain;charset=utf-8'});
+        const blob = new Blob(["\uFEFF"+txt],{type:'text/plain;charset=utf-8'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='master-book.txt'; a.click();
   });
   document.getElementById('mbPrintBtn').addEventListener('click', ()=>window.print());
@@ -3346,3 +3448,4 @@ boot().catch(showFatalError);
 </script>
 </body>
 </html>
+                           
