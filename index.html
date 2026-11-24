@@ -1610,7 +1610,7 @@ function renderHomeView(root, actions){
       ${recent.length?recent.map((b,i)=>`<div class="recent-benefit"><span class="recent-number">${String(i+1).padStart(2,'0')}</span><div class="recent-copy">${escapeHtml((b.text||'').slice(0,180))}${(b.text||'').length>180?'…':''}</div><span class="recent-arrow">↗</span></div>`).join(''):'<div class="empty-state">Your benefits will appear here once you add them.</div>'}
     </section>`;
   document.getElementById('homeStartStudy').onclick=()=>switchView({type:'study'});
-  root.querySel    pushUndo(`trashed ${slice.length} benefit(s)`, async ()=>{ for(const b of slice){ b.trashed=false; await idbPut('benefits', b); } });
+  root.querySelpushUndo(`trashed ${slice.length} benefit(s)`, async ()=>{ for(const b of slice){ b.trashed=false; await idbPut('benefits', b); } });
     opts.afterAction();
   });
   bar.appendChild(delBtn);
