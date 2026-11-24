@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ledger — Islamic Knowledge Library · v2.0.0</title>
+<title>Ledger — Islamic Knowledge Library · v3.0.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
 <style>
+
   :root{
     --bg:#15181b; --bg-raised:#1e2226; --card:#23282d; --card-hover:#292f35;
     --ink:#e9e6df; --ink-dim:#9aa1a8; --ink-faint:#656d74; --line:#33393f;
@@ -189,69 +190,341 @@
   footer{text-align:center; padding:20px; color:var(--ink-faint); font-size:10.5px; font-family:var(--mono);}
   @media print{ .sidebar,.topbar,footer,.modal-overlay:not(.print-target){display:none !important;} }
 
-  /* Ledger 2.0: calm paper-like workspace and comfortable mobile controls */
-  html[data-theme="light"]{
-    --bg:#f7f5ef; --bg-raised:#efede5; --card:#fffefa; --card-hover:#f4f1e8;
-    --ink:#292720; --ink-dim:#625e54; --ink-faint:#8b867a; --line:#ded9cc;
-    --amber:#a8783a; --teal:#2f8577; --red:#b0503d; --blue:#3d6ea8; --purple:#7a5a9c;
+
+  /* ============================================================
+     LEDGER 3.0 — editorial paper / forest design system
+     Visual layer only: existing app IDs, routes and data model stay intact.
+     ============================================================ */
+  :root{
+    color-scheme:light;
+    --bg:#f4f2eb;
+    --bg-raised:#ebe8dd;
+    --card:#fffefa;
+    --card-hover:#f8f6ef;
+    --ink:#202c28;
+    --ink-dim:#65716b;
+    --ink-faint:#89928c;
+    --line:#e2e4dc;
+    --amber:#bd8a45;
+    --teal:#277566;
+    --red:#b95345;
+    --blue:#426f9e;
+    --purple:#80639c;
+    --forest:#183f36;
+    --forest-2:#214b40;
+    --forest-ink:#f5f2e9;
+    --sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:"SF Mono",Consolas,monospace;
+    --shadow-sm:0 2px 8px rgba(28,45,37,.045);
+    --shadow-md:0 12px 34px rgba(28,45,37,.075);
+    --radius:15px;
   }
-  .shell{grid-template-columns:250px minmax(0,1fr);}
-  .sidebar{width:250px; padding:14px 10px; gap:8px;}
-  .wrap{max-width:1120px; padding:20px 18px 90px; gap:14px;}
-  .nav-item{padding:10px 10px; border-radius:8px;}
-  .btn,.side-btn,.icon-btn{min-height:36px;}
-  .nav-group{border:1px solid var(--line); border-radius:8px; padding:4px;}
-  .nav-group summary{cursor:pointer; padding:8px; color:var(--ink-faint); font-size:11px; font-weight:700; letter-spacing:.5px; list-style:none;}
-  .nav-group summary::-webkit-details-marker{display:none;}
-  .nav-group .nav-item{font-size:12.5px;}
-  .study-card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:clamp(18px,4vw,34px); min-height:260px; display:flex; flex-direction:column; justify-content:center; gap:20px; box-shadow:0 5px 20px rgba(40,35,20,.04);}
-  .study-text{font-family:'Amiri','Noto Naskh Arabic',serif; font-size:clamp(21px,3vw,29px); line-height:2; white-space:pre-wrap; text-align:right; direction:rtl;}
-  .study-actions{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px;}
-  .study-actions button{min-height:46px;}
-  .study-progress{height:7px; background:var(--bg-raised); border-radius:10px; overflow:hidden;}
-  .study-progress span{display:block;height:100%;background:var(--teal);width:0;transition:width .2s;}
-  .ref-list{font-size:11px;color:var(--ink-faint);margin-top:4px;line-height:1.5;}
-  .ref-list a{color:var(--blue);}
-  .mb-para[data-read="true"]{background:rgba(47,133,119,.10); border-radius:6px; padding:2px 6px;}
-  .health-list{display:grid;gap:7px;}
-  .health-item{display:flex;justify-content:space-between;gap:12px;padding:9px 11px;background:var(--card);border:1px solid var(--line);border-radius:7px;font-size:12px;}
-  .health-item strong{font-family:var(--mono);}
-  @media(max-width:900px){
-    .shell{grid-template-columns:1fr;}
-    .sidebar{width:min(310px,88vw);padding:14px;}
-    .topbar{padding:10px 13px;}
-    .wrap{padding:14px 12px 90px;}
-    .topbar-right{width:100%;}
-    .topbar-right .btn{flex:1;}
-    .study-actions{grid-template-columns:repeat(2,minmax(0,1fr));}
-    .import-box{padding:14px;}
-    .import-box textarea{min-height:210px;}
-    .modal-overlay{padding:12px;}
-    .modal{padding:16px;}
+  html[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#151d1a;
+    --bg-raised:#1d2924;
+    --card:#202d27;
+    --card-hover:#293830;
+    --ink:#edf1e9;
+    --ink-dim:#b0bdb4;
+    --ink-faint:#839188;
+    --line:#34443b;
+    --amber:#d6aa69;
+    --teal:#72b5a2;
+    --red:#e18a7c;
+    --blue:#8db7e1;
+    --purple:#b49acb;
+    --forest:#101a16;
+    --forest-2:#1a2922;
+    --forest-ink:#f5f2e9;
+    --shadow-sm:0 2px 8px rgba(0,0,0,.16);
+    --shadow-md:0 12px 34px rgba(0,0,0,.24);
   }
-  @media(max-width:420px){.ctx-title{font-size:15px}.ctx-sub{font-size:10px}.btn{padding:8px 10px}}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:14px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer}
+  ::selection{background:rgba(39,117,102,.18)}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:20px;border:2px solid var(--bg)}
+  a{color:var(--blue)}
+  .shell{display:grid;grid-template-columns:258px minmax(0,1fr);min-height:100vh;background:var(--bg)}
+  .sidebar{
+    position:sticky;top:0;height:100vh;width:auto;min-width:0;
+    padding:25px 17px 18px;gap:9px;overflow-y:auto;
+    display:flex;flex-direction:column;
+    color:var(--forest-ink);background:var(--forest);
+    border:0;border-right:1px solid rgba(255,255,255,.07);
+    box-shadow:5px 0 24px rgba(19,45,37,.05);
+  }
+  .brand{position:relative;display:flex;align-items:center;gap:12px;padding:4px 8px 23px;margin-bottom:7px;border-bottom:1px solid rgba(255,255,255,.13)}
+  .brand .mark{
+    display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;
+    border:1px solid rgba(218,184,126,.65);border-radius:12px;
+    background:rgba(218,184,126,.12);color:#e0bd83;
+    font-family:Georgia,serif;font-size:21px;letter-spacing:0;padding:0;
+  }
+  .brand h1{font-size:20px;letter-spacing:-.7px;font-weight:700;color:#fffdf6}
+  .brand:after{content:"YOUR KNOWLEDGE LIBRARY";display:block;position:absolute;margin:42px 0 0 50px;font-size:8px;letter-spacing:1.65px;color:rgba(245,242,233,.48);font-weight:700}
+  #sidebarCloseBtn{color:rgba(255,255,255,.7)!important}
+  .nav-item{
+    position:relative;display:flex;align-items:center;gap:11px;
+    min-height:43px;padding:10px 12px;border-radius:10px;
+    color:rgba(245,242,233,.76);font-size:13px;font-weight:550;
+    transition:background .16s,color .16s,transform .16s;
+  }
+  .nav-item:before{
+    display:grid;place-items:center;width:19px;flex:0 0 19px;
+    font-size:16px;line-height:1;color:rgba(227,211,178,.75);
+  }
+  .nav-item[data-nav="masterbook"]:before{content:"▤"}
+  .nav-item[data-nav="study"]:before{content:"◷"}
+  .nav-item[data-nav="import"]:before{content:"＋"}
+  .nav-item[data-nav="all"]:before{content:"▦"}
+  .nav-item[data-nav="triage"]:before{content:"◇"}
+  .nav-item[data-nav="importCards"]:before{content:"▧"}
+  .nav-item[data-nav="triageCards"]:before{content:"▥"}
+  .nav-item[data-nav="questions"]:before{content:"?"}
+  .nav-item[data-nav="needsSorting"]:before{content:"⇥"}
+  .nav-item[data-nav="skipped"]:before{content:"↷"}
+  .nav-item[data-nav="trash"]:before{content:"⌫"}
+  .nav-item[data-nav="history"]:before{content:"◴"}
+  .nav-item:hover{background:rgba(255,255,255,.075);color:#fff}
+  .nav-item.active{
+    color:#fff;background:rgba(225,194,139,.15);
+    box-shadow:inset 3px 0 0 #d7b77e;
+  }
+  .nav-item.active:before{color:#e3c58e}
+  .nav-item .badge{
+    margin-left:auto;background:#d7b77e;color:#203d33;
+    border-radius:20px;padding:2px 7px;font-size:10px;font-weight:750;
+  }
+  .nav-group{margin:5px 0 2px;border:0;background:transparent}
+  .nav-group summary{
+    list-style:none;display:flex;align-items:center;justify-content:space-between;
+    padding:10px 11px;color:rgba(245,242,233,.48);
+    font-size:9px;letter-spacing:1.55px;font-weight:800;cursor:pointer;
+  }
+  .nav-group summary::-webkit-details-marker{display:none}
+  .nav-group summary:after{content:"＋";font-size:12px;color:rgba(245,242,233,.45)}
+  .nav-group[open] summary:after{content:"−"}
+  .nav-group .nav-item{min-height:37px;padding-top:8px;padding-bottom:8px;font-size:12px}
+  .side-label{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:13px 9px 5px;color:rgba(245,242,233,.48);
+    font-size:9px;letter-spacing:1.55px;font-weight:800;text-transform:uppercase;
+  }
+  .side-label button{color:#e2c48e;background:transparent;border:0;font-size:20px}
+  #nbList{display:flex;flex-direction:column;gap:2px}
+  .nb-item{min-height:35px;padding:7px 9px;border-radius:8px;color:rgba(245,242,233,.72);font-size:12px}
+  .nb-item:hover,.nb-item.active{background:rgba(255,255,255,.08);color:#fff}
+  .nb-item.active{box-shadow:inset 2px 0 #d7b77e}
+  .nb-item [data-role="delnb"],.nb-item [data-role="renamenb"]{color:rgba(255,255,255,.65)}
+  .side-bottom{margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,.12);gap:7px}
+  .side-btn{
+    width:100%;display:flex;align-items:center;gap:9px;text-align:left;
+    padding:9px 10px;border:1px solid rgba(255,255,255,.11);border-radius:9px;
+    background:rgba(255,255,255,.045);color:rgba(245,242,233,.76);font-size:11px;
+  }
+  .side-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+  .side-btn:disabled{opacity:.35}
+  .theme-toggle{padding:11px 8px 0;border-top:1px solid rgba(255,255,255,.1);margin-top:5px}
+  .theme-toggle .side-label{padding:0 0 7px;color:rgba(245,242,233,.48)}
+  .theme-toggle .btn-sm{border:1px solid rgba(255,255,255,.17);background:transparent;color:rgba(255,255,255,.72);border-radius:7px}
+  .theme-toggle .btn-sm.active{background:#e2c48e;color:#203d33;border-color:#e2c48e}
+  .main{min-width:0;display:flex;flex-direction:column}
+  .topbar{
+    position:sticky;top:0;z-index:20;min-height:76px;
+    padding:14px clamp(18px,4vw,48px);
+    display:flex;align-items:center;justify-content:space-between;gap:15px;
+    background:color-mix(in srgb,var(--card) 92%,transparent);
+    border-bottom:1px solid var(--line);backdrop-filter:blur(16px);
+  }
+  .ctx-title{font-size:19px;font-weight:720;letter-spacing:-.55px;color:var(--ink)}
+  .ctx-sub{margin-top:2px;font-size:11px;letter-spacing:.1px;color:var(--ink-faint);font-family:var(--sans)}
+  .menu-btn{display:none;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);width:38px;height:38px;font-size:18px}
+  .topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .wrap{width:min(100%,1160px);margin:0 auto;padding:clamp(20px,3vw,36px) clamp(16px,4vw,48px) 88px;display:flex;flex-direction:column;gap:18px}
+  footer{padding:18px 30px;text-align:center;color:var(--ink-faint);font-size:9px;letter-spacing:1.8px;border-top:1px solid var(--line)}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    min-height:37px;padding:8px 14px;border-radius:9px;border:1px solid transparent;
+    font-size:12px;font-weight:650;letter-spacing:.05px;transition:all .16s;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--forest-2);color:#fff;border-color:var(--forest-2);box-shadow:0 3px 8px rgba(24,63,54,.13)}
+  html[data-theme="dark"] .btn-primary{background:#387866;border-color:#387866;color:#fff}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{background:var(--card);color:var(--ink-dim);border-color:var(--line)}
+  .btn-ghost:hover{background:var(--card-hover);border-color:#b8c5bb;color:var(--ink)}
+  .btn-danger{background:var(--card);color:var(--red);border-color:var(--line)}
+  .btn-danger:hover{background:rgba(185,83,69,.08);border-color:var(--red)}
+  .btn-sm{min-height:31px;padding:5px 10px;font-size:10.5px;border-radius:7px}
+  .icon-btn{padding:5px 8px;border-radius:7px;color:var(--ink-faint);font-size:11px}
+  .icon-btn:hover{background:var(--bg-raised);color:var(--ink)}
+  input,select,textarea{
+    max-width:100%;background:var(--card);color:var(--ink);
+    border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+    outline:none;transition:border-color .15s,box-shadow .15s;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(39,117,102,.11)}
+  input::placeholder,textarea::placeholder{color:var(--ink-faint)}
+  .field{gap:6px}
+  .field label,.lbl{font-size:11px;color:var(--ink-dim);font-weight:650}
+  .hint{font-size:11px;line-height:1.65;color:var(--ink-faint)}
+  .pill,.chip{border-radius:30px;padding:4px 9px;font-size:10px;font-weight:650}
+  .triage-toolbar{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:11px 13px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;box-shadow:var(--shadow-sm);
+  }
+  .triage-toolbar input[type="text"]{min-width:180px}
+  #mbSearch{flex:1;min-width:min(100%,300px)!important}
+  #mbSearchBtn{min-width:88px}
+  #mbMatchInfo{margin:0 5px}
+  #mbDuplicateAll,#mbExportAll,#mbPrintBtn{background:transparent;border-color:transparent;box-shadow:none;padding-left:9px;padding-right:9px}
+  #mbDuplicateAll:hover,#mbExportAll:hover,#mbPrintBtn:hover{background:var(--bg-raised);border-color:var(--line)}
+  .collapsible{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow-sm);overflow:hidden;
+  }
+  .collapsible>summary{
+    padding:14px 17px;font-size:12px;font-weight:700;color:var(--ink);
+    cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;
+  }
+  .collapsible>summary::-webkit-details-marker{display:none}
+  .collapsible>summary:after{content:"＋";color:var(--ink-faint);font-size:15px}
+  .collapsible[open]>summary:after{content:"−"}
+  .collapsible-body{padding:15px 17px;border-top:1px solid var(--line)}
+  .read-doc{
+    background:var(--card);border:1px solid var(--line);border-radius:15px;
+    padding:clamp(18px,3.2vw,36px);box-shadow:var(--shadow-sm);
+  }
+  #mbPageContent{min-height:360px}
+  .mb-rtl{font-family:"Noto Naskh Arabic","Amiri",serif;font-size:19px;line-height:2.1}
+  .mb-para{padding:5px 9px;border-radius:8px;transition:background .15s}
+  .mb-para[data-read="true"]{background:rgba(39,117,102,.09);padding:5px 9px}
+  .mb-para:hover{background:rgba(39,117,102,.045)}
+  .study-card{
+    background:var(--card);border:1px solid var(--line);border-radius:20px;
+    padding:clamp(24px,5vw,54px);min-height:300px;gap:24px;
+    box-shadow:var(--shadow-md);position:relative;overflow:hidden;
+  }
+  .study-card:before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--forest-2),#c5a16a)}
+  .study-text{font-family:"Noto Naskh Arabic","Amiri",serif;font-size:clamp(25px,3.5vw,35px);line-height:2.05;color:var(--ink)}
+  .study-actions{gap:10px}
+  .study-actions button{min-height:49px;border-radius:10px;font-size:12px}
+  .study-progress{height:6px;background:var(--bg-raised);border-radius:20px}
+  .study-progress span{background:var(--teal);border-radius:20px}
+  .benefit-row,.placement-row,.triage-row,.skip-row,.health-item,.stat-box,.import-box,.drop-zone,.quickadd{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow-sm);
+  }
+  .benefit-row{padding:14px 16px;margin-bottom:10px;gap:8px}
+  .placement-row{padding:12px 14px;margin-bottom:8px}
+  .triage-row{padding:13px 15px;margin-bottom:9px}
+  .stat-grid{gap:12px}
+  .stat-box{padding:17px;border-radius:13px}
+  .stat-box .big{font-size:27px;font-weight:750;letter-spacing:-1px;color:var(--ink)}
+  .health-item{padding:11px 13px}
+  .empty{padding:40px 20px;border:1px dashed var(--line);border-radius:14px;color:var(--ink-faint);text-align:center;background:rgba(255,255,255,.18)}
+  .empty .big{font-size:28px;margin-bottom:8px}
+  .modal-overlay{background:rgba(15,28,23,.58);backdrop-filter:blur(5px);padding:24px 14px}
+  .modal{background:var(--card);border:1px solid var(--line);border-radius:17px;padding:23px;box-shadow:0 24px 80px rgba(0,0,0,.2)}
+  .modal h3{font-size:16px;letter-spacing:-.3px}
+  .modal-body{max-height:72vh}
+  .mini-row{border-bottom:1px solid var(--line);padding:10px 0}
+  .ref-list{font-size:11px;line-height:1.7}
+  .row-dropdown{background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-md);padding:5px}
+  .row-dropdown button{border-radius:6px;padding:8px 10px}
+  .flash-highlight{outline:3px solid rgba(189,138,69,.55);outline-offset:3px;border-radius:8px}
+  .side-bottom .side-label{color:rgba(245,242,233,.48)}
+  .fatal-error-banner{font-family:var(--mono)}
+  #startupScreen{
+    position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+    background:var(--bg);color:var(--ink);transition:opacity .22s,visibility .22s;
+  }
+  #startupScreen .startup-inner{text-align:center;display:grid;justify-items:center;gap:12px;padding:24px}
+  #startupScreen .startup-mark{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:var(--forest);color:#e2c48e;font:26px Georgia,serif}
+  #startupScreen .startup-title{font-size:19px;font-weight:750;letter-spacing:-.5px}
+  #startupScreen .startup-caption{font-size:11px;color:var(--ink-faint)}
+  #startupScreen .startup-spinner{width:20px;height:20px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:ledger-spin .8s linear infinite}
+  @keyframes ledger-spin{to{transform:rotate(360deg)}}
+  body.app-ready #startupScreen{opacity:0;visibility:hidden;pointer-events:none}
+  @media(max-width:980px){
+    .shell{grid-template-columns:1fr}
+    .sidebar{
+      position:fixed;left:0;top:0;bottom:0;height:100dvh;width:min(300px,86vw);
+      z-index:60;transform:translateX(-105%);transition:transform .22s ease;
+      box-shadow:18px 0 55px rgba(0,0,0,.22)
+    }
+    .sidebar.open{transform:translateX(0)}
+    body:has(.sidebar.open):after{content:"";position:fixed;inset:0;z-index:50;background:rgba(13,25,20,.42);backdrop-filter:blur(2px)}
+    .menu-btn{display:inline-grid;place-items:center}
+    .topbar{min-height:68px;padding:11px 16px}
+    .ctx-title{font-size:17px}
+    .wrap{padding:19px 15px 70px;gap:14px}
+    footer{padding:15px}
+  }
+  @media(max-width:600px){
+    .topbar{align-items:center}
+    .topbar-right{width:100%;justify-content:flex-start}
+    .wrap{padding-left:12px;padding-right:12px}
+    .triage-toolbar{padding:9px;gap:7px}
+    .triage-toolbar .hint{width:100%}
+    #mbSearch{min-width:100%!important}
+    #mbPageContent{min-height:280px}
+    .read-doc{padding:17px 13px;border-radius:12px}
+    .mb-rtl{font-size:18px;line-height:2}
+    .study-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .study-card{min-height:250px;padding:24px 18px}
+    .modal-overlay{padding:10px}
+    .modal{padding:17px;border-radius:14px}
+    .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}
+  }
 
 </style>
 </head>
 <body>
+<div id="startupScreen" aria-live="polite">
+  <div class="startup-inner">
+    <div class="startup-mark">L</div>
+    <div class="startup-title">Ledger</div>
+    <div class="startup-spinner" aria-hidden="true"></div>
+    <div class="startup-caption">Opening your knowledge library…</div>
+  </div>
+</div>
 
 <div class="shell">
   <aside class="sidebar" id="sidebar">
-    <div class="brand"><span class="mark">§</span><h1>Ledger</h1><button id="sidebarCloseBtn" class="menu-btn" style="margin-left:auto;">✕</button></div>
+    <div class="brand"><span class="mark">L</span><h1>Ledger</h1><button id="sidebarCloseBtn" class="menu-btn" style="margin-left:auto;">✕</button></div>
 
-    <div class="nav-item" data-nav="masterbook">📘 Master Book</div>
-    <div class="nav-item" data-nav="study">📖 Daily Study</div>
-    <div class="nav-item" data-nav="import">＋ Add Benefits</div>
-    <div class="nav-item" data-nav="all">📚 All Benefits</div>
+    <div class="nav-item" data-nav="masterbook">Master Book</div>
+    <div class="nav-item" data-nav="study">Daily Study</div>
+    <div class="nav-item" data-nav="import">Add benefits</div>
+    <div class="nav-item" data-nav="all">All benefits</div>
     <details class="nav-group"><summary>MORE TOOLS</summary>
-      <div class="nav-item" data-nav="triage">🏷 New Benefits <span class="badge" id="pendingBadge">0</span></div>
-      <div class="nav-item" data-nav="importCards">🗂 Import Flashcards</div>
-      <div class="nav-item" data-nav="triageCards">🗃 Flashcard Sorting <span class="badge" id="pendingCardsBadge">0</span></div>
-      <div class="nav-item" data-nav="questions">❓ Questions <span class="badge" id="questionsBadge">0</span></div>
-      <div class="nav-item" data-nav="needsSorting">📥 Needs Sorting <span class="badge" id="needsSortingBadge">0</span></div>
-      <div class="nav-item" data-nav="skipped">⏭ Skipped <span class="badge" id="skippedBadge">0</span></div>
-      <div class="nav-item" data-nav="trash">🗑 Trash</div>
-      <div class="nav-item" data-nav="history">🕘 History & Recovery</div>
+      <div class="nav-item" data-nav="triage">New benefits <span class="badge" id="pendingBadge">0</span></div>
+      <div class="nav-item" data-nav="importCards">Import flashcards</div>
+      <div class="nav-item" data-nav="triageCards">Flashcard sorting <span class="badge" id="pendingCardsBadge">0</span></div>
+      <div class="nav-item" data-nav="questions">Questions <span class="badge" id="questionsBadge">0</span></div>
+      <div class="nav-item" data-nav="needsSorting">Needs sorting <span class="badge" id="needsSortingBadge">0</span></div>
+      <div class="nav-item" data-nav="skipped">Skipped <span class="badge" id="skippedBadge">0</span></div>
+      <div class="nav-item" data-nav="trash">Trash</div>
+      <div class="nav-item" data-nav="history">History & recovery</div>
     </details>
 
     <div class="side-label">Notebooks<button id="addNbBtn">+</button></div>
@@ -273,12 +546,12 @@
     <div class="topbar">
       <div style="display:flex; align-items:center; gap:10px;">
         <button class="menu-btn" id="menuBtn">☰</button>
-        <div><div class="ctx-title" id="ctxTitle">Import Text</div><div class="ctx-sub" id="ctxSub"></div></div>
+        <div><div class="ctx-title" id="ctxTitle">Master Book</div><div class="ctx-sub" id="ctxSub"></div></div>
       </div>
       <div class="topbar-right" id="topbarActions"></div>
     </div>
     <div class="wrap" id="viewRoot"></div>
-    <footer>LEDGER · VERSION 2.0.0 · YOUR KNOWLEDGE LIBRARY</footer>
+    <footer>LEDGER · YOUR PERSONAL ISLAMIC KNOWLEDGE LIBRARY · VERSION 3.0.0</footer>
   </div>
 </div>
 
@@ -893,6 +1166,7 @@ async function boot(){
   renderSidebar();
   renderView();
   updateUndoBtn();
+  document.body.classList.add('app-ready');
 }
 
 /* ===================== Helpers (index-backed for speed at scale) ===================== */
@@ -1459,7 +1733,7 @@ function renderImportView(root, actions){
       <textarea id="importText" placeholder="Paste your entire file here. A new entry starts either at three or more dots (...) or at a numbered list marker (1. / 2) / ٣.) at the start of a line — line breaks, tabs, and paragraph gaps otherwise stay inside the same entry.&#10;&#10;To auto-sort an entry, end its block with a line starting with ### and the full heading branch, e.g.:&#10;&#10;بعض الفوائد هنا&#10;###الفقه > الطهارة > الوضوء&#10;...&#10;&#10;Entries without a ### line are filed under the category (needs sorting) in the Master Book."></textarea>
       <div class="import-opts">
         <label><input type="radio" name="importKind" id="kindBenefit" checked> 📖 Benefits</label>
-        <label><input type="radio" name="importKind" id="kindQuestion"> ❓ Questions</label>
+        <label><input type="radio" name="importKind" id="kindQuestion"> Questions</label>
         <label><input type="checkbox" id="optDedupe"> Skip exact duplicates</label>
         <label><input type="checkbox" id="optMinLen" checked> Skip empty / whitespace-only entries</label>
         <label><input type="checkbox" id="optUpdate" checked> Match existing benefits and add missing category placements without removing existing ones</label>
@@ -1966,7 +2240,8 @@ async function confirmIntoNotebooks(benId, selectedIds){
   }
   return created;
 }
-async function undoPlacements(createdPlacements){
+
+ async function undoPlacements(createdPlacements){
   for(const pl of createdPlacements){
     await idbDelete('placements', pl.id);
     placements = placements.filter(x=>x.id!==pl.id);
@@ -2123,7 +2398,7 @@ async function undoPlacements(createdPlacements){
       <div class="mini-row" style="margin-bottom:10px;">
         <span class="grow"></span>
         <button class="btn btn-ghost btn-sm" id="clearNbBtn">🗑 Clear all from this notebook</button>
-        <button class="btn btn-danger btn-sm" id="trashAllNbBtn">🗑 Trash ALL benefits (permanent)</button>
+        <button class="btn btn-danger btn-sm" id="trashAllNbBtn">Trash ALL benefits (permanent)</button>
       </div>
       <div class="hint" style="margin:-4px 0 10px;">"Clear" and "Remove range" only take benefits out of this notebook — they stay untouched everywhere else. "Trash" actually deletes the benefits (recoverable from Trash until emptied). "Move range" removes them from here after placing them at the destination; "Duplicate range" keeps them here too.</div>
       <div id="nbBody"></div>
@@ -2343,7 +2618,7 @@ function paraHtml(l, editMode, rtl){
         ${l.placementId?`<button data-action="move-p-up" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▲ Move up</button>
         <button data-action="move-p-down" data-placement="${l.placementId}" data-notebook="${l.notebookId}">▼ Move down</button>
         <button data-action="remove-here" data-placement="${l.placementId}" data-notebook="${l.notebookId}">Remove from here only</button>`:''}
-        <button data-action="trash-benefit" data-benefit="${l.benefitId}" class="danger">🗑 Trash</button>` : '';
+        <button data-action="trash-benefit" data-benefit="${l.benefitId}" class="danger">Trash</button>` : '';
   const menu = `<span class="row-menu-wrap" data-role="rowmenu">
       <button class="icon-btn" data-action="toggle-menu" title="Options">⋮</button>
       <span class="row-dropdown">
@@ -2913,7 +3188,7 @@ function renderAllBenefitsView(root, actions){
   const active = benefits.filter(b=>!b.trashed);
   document.getElementById('ctxSub').textContent = active.length+" total";
 
-  const delAllBtn=document.createElement('button'); delAllBtn.className='btn btn-danger btn-sm'; delAllBtn.textContent='🗑 Trash ALL benefits';
+  const delAllBtn=document.createElement('button'); delAllBtn.className='btn btn-danger btn-sm'; delAllBtn.textContent='Trash ALL benefits';
   delAllBtn.addEventListener('click', async ()=>{
     if(active.length===0){ alert("Nothing to delete."); return; }
     if(!confirm(`Move all ${active.length} benefits to Trash? This clears every notebook too (placements stay only as history until you empty Trash).`)) return;
@@ -2955,7 +3230,7 @@ function renderQuestionsView(root, actions){
   document.getElementById('ctxSub').textContent = active.length+" total";
 
   if(active.length>0){
-    const delAllBtn=document.createElement('button'); delAllBtn.className='btn btn-danger btn-sm'; delAllBtn.textContent='🗑 Trash ALL questions';
+    const delAllBtn=document.createElement('button'); delAllBtn.className='btn btn-danger btn-sm'; delAllBtn.textContent='Trash ALL questions';
     delAllBtn.addEventListener('click', async ()=>{
       if(!confirm(`Move all ${active.length} questions to Trash? This clears every notebook too (placements stay only as history until you empty Trash).`)) return;
       if(!confirm("Really sure? Type OK to confirm again.")) return;
@@ -3618,6 +3893,7 @@ document.getElementById('themeLight').addEventListener('click', ()=>{ document.d
 
 /* ===================== Global error surfacing — so a crash shows a readable message instead of a blank/broken page ===================== */
 function showFatalError(err){
+  document.body.classList.add('app-ready');
   console.error(err);
   let banner = document.getElementById('fatalErrorBanner');
   if(!banner){
@@ -3639,4 +3915,3 @@ boot().catch(showFatalError);
 </body>
 </html>
                            
- 
