@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ledger — Islamic Knowledge Library · v3.0.0</title>
+<title>Ledger — Islamic Knowledge Library · v3.1.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#f4f0e5; --bg-raised:#eee8d9; --card:#fffaf0; --card-hover:#f7f0e2;
@@ -320,8 +320,83 @@ details.collapsible>.collapsible-body{padding:4px 19px 19px}
 .recent-copy{flex:1;font-family:"Noto Naskh Arabic","Amiri",serif;font-size:15px;line-height:1.8;color:#34483a}
 .recent-arrow{color:#78917c}.empty-state{padding:22px;color:#899187;text-align:center}
 @media(max-width:1000px){.shell{grid-template-columns:220px minmax(0,1fr)}.sidebar{width:220px}.home-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){.shell{grid-template-columns:1fr}.sidebar{width:270px;position:fixed;left:0;top:0;z-index:60;transform:translateX(-105%);height:100dvh}.sidebar.open{transform:translateX(0)}.topbar{padding:13px 16px}.wrap{padding:18px 14px 70px}.ctx-title{font-size:21px}.home-hero{grid-template-columns:1fr;min-height:260px;padding:27px 24px}.home-hero-art{position:absolute;right:0;bottom:0;width:45%;opacity:.38}.home-stat-grid{gap:9px}.home-stat{padding:13px;gap:9px}.home-stat-icon{width:35px;height:35px}.home-stat strong{font-size:22px}.home-content-grid{grid-template-columns:1fr}.read-doc{padding:17px!important}}
+@media(max-width:900px){.shell{grid-template-columns:1fr}.sidebar{width:270px;position:fixed;left:0;top:0;z-index:60;transform:translateX(-105%);height:100dvh}.sidebar.open{transform:translateX(0)}.topbar{padding:13px 16px}.wrap{padding:18px 14px 70px}.ctx-title{font-size:21px}.home-hero{grid-template-columns:1fr;min-height:260px;padding:27px 24px}.home-hero-art{position:absolute;right:0;bottom:0;width:45%;opacity:.38}.home-stat-grid{gap:9px}.home-stat{padding:13px;gap:9px}.home-stat-icon{width:35px;height:35px}.home-stat strong{font-size:22px}.home-content-grid{grid-template-columns:1fr}.read-doc{padding:17px!important}}
 
+
+/* ===== LEDGER 3.1 · FUN STUDY APP ===== */
+:root{--g1:#1b5e43;--g2:#2f9e6b;--mint:#dff3e6;--sun:#f6b93b;--coral:#ef6f5e;--sky:#4f8fe0;--cream:#fbf7ec;--r:20px;--sh:0 5px 0 rgba(23,75,53,.09),0 10px 24px rgba(23,75,53,.07)}
+html,html[data-theme="dark"],body{background:var(--cream)!important}
+body{font-family:'Nunito',Inter,system-ui,sans-serif}
+.main,.shell{background:var(--cream)}
+.topbar{padding:14px 20px;background:linear-gradient(135deg,var(--g1),var(--g2))!important;border:0;border-radius:0 0 26px 26px;backdrop-filter:none;box-shadow:0 8px 20px rgba(23,75,53,.18)}
+.ctx-title{color:#fff!important;font-family:Georgia,serif;font-size:22px}
+.ctx-sub{color:#cfeedd!important}
+.menu-btn{color:#fff!important}
+.topbar .btn-ghost,.topbar .btn-danger{background:rgba(255,255,255,.18)!important;color:#fff!important;border:0!important}
+.topbar .btn-primary{background:var(--sun)!important;color:#3a2a00!important;box-shadow:none}
+.wrap{padding:22px 18px 110px}
+.btn{border-radius:14px;min-height:44px;font-weight:800;transition:transform .12s}
+.btn:active{transform:translateY(3px) scale(.98)}
+.btn-primary{background:var(--g2)!important;color:#fff!important;box-shadow:0 4px 0 #1b7a50}
+.btn-ghost{background:#fff;border:2px solid #e6dfcc;color:#40604d}
+.btn-danger{background:#fff;border:2px solid #f3cfc9;color:var(--coral)}
+.btn-sm{min-height:38px;border-radius:12px}
+details.collapsible,.import-box,.triage-row,.benefit-row,.placement-row,.home-panel,.home-stat,.stat-box{border-radius:var(--r)!important;background:#fff!important;border:2px solid #efe8d6!important;box-shadow:var(--sh)}
+.mini-row{border-radius:16px;background:#fff!important;border:2px solid #efe8d6!important}
+details.collapsible>summary{font-weight:800}
+.home-hero{border-radius:28px;background:linear-gradient(135deg,#1b5e43,#2f9e6b 60%,#6cc58f);box-shadow:0 8px 0 #14543a}
+.home-cta{background:var(--sun)!important;color:#3a2a00!important;box-shadow:0 4px 0 #c88f1c!important;border-radius:16px}
+.home-stat:nth-child(2) .home-stat-icon{background:#dce9fb;color:var(--sky)}
+.home-stat:nth-child(3) .home-stat-icon{background:#fff0c9;color:#c88f1c}
+.home-stat:nth-child(4) .home-stat-icon{background:#fde0db;color:var(--coral)}
+.home-stat-icon{border-radius:16px}
+.quick-link{border-radius:18px;border:2px solid #efe8d6;background:#fff}
+.quick-link:active{transform:scale(.98)}
+.pill{border-radius:999px;border:2px solid #e6dfcc;background:#fff;min-height:40px;font-weight:700}
+.pill:active,.pill:hover{background:var(--mint);border-color:var(--g2)}
+input,select,textarea{border:2px solid #e6dfcc!important;background:#fff!important}
+/* study */
+@keyframes pop{from{transform:scale(.94);opacity:0}to{transform:none;opacity:1}}
+.study-progress{height:14px;border-radius:99px;background:#e9e2cf}
+.study-progress span{background:linear-gradient(90deg,var(--sun),var(--g2));border-radius:99px}
+.study-card{border-radius:28px;background:#fff;border:2px solid #efe8d6;box-shadow:0 8px 0 rgba(23,75,53,.10);min-height:46vh;animation:pop .25s ease-out}
+.study-text{font-size:clamp(24px,6vw,32px);line-height:2.1}
+.study-actions{grid-template-columns:1fr 1fr}
+.study-actions button{min-height:58px;font-size:15px;border-radius:18px}
+#studyOld{background:var(--g2)!important;color:#fff!important;box-shadow:0 5px 0 #1b7a50}
+#studyNew{background:var(--sun)!important;color:#3a2a00!important;border:0;box-shadow:0 5px 0 #c88f1c}
+/* arabic everywhere */
+.triage-text,.placement-body,.benefit-row>div:first-child,.recent-copy,.skip-row .txt{unicode-bidi:plaintext;text-align:start;font-family:'Amiri','Noto Naskh Arabic',serif;font-size:18px;line-height:2.1}
+textarea{unicode-bidi:plaintext;text-align:start}
+.mb-para [data-role="ptext"]{white-space:pre-wrap}
+.mb-para{padding:6px 4px}
+.read-doc{border-radius:24px;padding:18px!important}
+/* menus + modals */
+.row-dropdown{border-radius:18px;padding:8px;background:#fff;border:2px solid #efe8d6;box-shadow:0 12px 30px rgba(0,0,0,.18)}
+.row-dropdown button{padding:12px;border-radius:12px;font-size:14px}
+.row-dropdown button:active{background:var(--mint)}
+.modal{border-radius:26px!important;overflow:hidden;background:#fff!important}
+.modal h3{margin:-22px -22px 16px!important;padding:16px 22px!important;background:linear-gradient(135deg,var(--g1),var(--g2))!important;color:#fff!important;border-radius:0!important}
+.modal h3 button,.brand .menu-btn,.side-label button{color:#e8efe3!important}
+.chip{border-radius:99px;padding:3px 10px}
+/* tab bar */
+.tabbar{display:none}
+@media(max-width:900px){
+ .shell{grid-template-columns:1fr!important}
+ .sidebar{position:fixed;z-index:70;left:0;top:0;height:100dvh;width:min(300px,86vw);transform:translateX(-105%);transition:transform .22s}
+ .sidebar.open{transform:none}
+ .home-hero{grid-template-columns:1fr}
+ .home-stat-grid{grid-template-columns:1fr 1fr}
+ .home-content-grid{grid-template-columns:1fr}
+ footer{display:none}
+ .topbar-right{width:100%}
+ .tabbar{display:flex;position:fixed;left:10px;right:10px;bottom:10px;z-index:60;background:#fff;border:2px solid #efe8d6;border-radius:26px;padding:6px;gap:2px;box-shadow:0 10px 30px rgba(23,75,53,.22);padding-bottom:calc(6px + env(safe-area-inset-bottom))}
+ .tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:none;padding:7px 0;border-radius:18px;color:#7b867d;font-size:11px;font-weight:800;font-family:inherit}
+ .tabbar svg{width:23px;height:23px;fill:currentColor}
+ .tabbar button.active{background:var(--mint);color:var(--g1)}
+ .tabbar .tab-main{background:var(--sun);color:#3a2a00;transform:translateY(-10px);box-shadow:0 4px 0 #c88f1c;border-radius:20px;flex:1.1}
+ .tabbar .tab-main.active{background:var(--sun);color:#3a2a00}
+}
 </style>
 </head>
 <body>
@@ -370,7 +445,7 @@ details.collapsible>.collapsible-body{padding:4px 19px 19px}
       <div class="topbar-right" id="topbarActions"></div>
     </div>
     <div class="wrap" id="viewRoot"></div>
-    <footer>LEDGER · VERSION 3.0.0 · YOUR KNOWLEDGE LIBRARY</footer>
+    <footer>LEDGER · VERSION 3.1.0 · YOUR KNOWLEDGE LIBRARY</footer>
   </div>
 </div>
 
@@ -468,6 +543,13 @@ details.collapsible>.collapsible-body{padding:4px 19px 19px}
   </div>
 </div>
 
+<nav class="tabbar" id="tabbar">
+  <button data-tab="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
+  <button data-tab="masterbook"><svg viewBox="0 0 24 24"><path d="M4 4h7a3 3 0 0 1 1 .2V20a3 3 0 0 0-1-.2H4zM20 4h-7a3 3 0 0 0-1 .2V20a3 3 0 0 1 1-.2h7z"/></svg><span>Book</span></button>
+  <button data-tab="study" class="tab-main"><svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.1 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z"/></svg><span>Study</span></button>
+  <button data-tab="import"><svg viewBox="0 0 24 24"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"/></svg><span>Add</span></button>
+  <button data-tab="menu"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zM4 11h16v2H4zM4 16h16v2H4z"/></svg><span>More</span></button>
+</nav>
 <script>
 (function(){
 "use strict";
@@ -538,8 +620,11 @@ async function recordChange(store,id,before,after){
 async function idbPut(store,obj){
   const track=changeTrackingEnabled && AUDITED_STORES.has(store);
   const before=track?await idbGet(store,obj.id):null;
+  const changed=!track || JSON.stringify(before)!==JSON.stringify(obj);
+  if(store==='benefits' && changed && changeTrackingEnabled) obj.updatedAt=Date.now();
   await idbPutRaw(store,obj);
-  if(track && JSON.stringify(before)!==JSON.stringify(obj)) await recordChange(store,obj.id,before,obj);
+  const counterOnly=store==='notebooks' && before && JSON.stringify({...before,nextNumber:0})===JSON.stringify({...obj,nextNumber:0});
+  if(track && changed && !counterOnly) await recordChange(store,obj.id,before,obj);
   return obj;
 }
 async function idbDelete(store,id){
@@ -663,7 +748,7 @@ function notesQuestionsHtml(b){
   });
   (b.references||[]).forEach((r,i)=>{
     const label = [r.author,r.book,r.volume ? `vol. ${r.volume}` : '',r.page ? `p. ${r.page}` : '',r.hadithNumber ? `hadith ${r.hadithNumber}` : '',r.chapter].filter(Boolean).join(' · ');
-    html += `<div class="ref-list">📚 ${escapeHtml(label || r.title || 'Reference')}${r.url ? ` · <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Open source</a>` : ''} <span class="mini-x" data-action="ref-edit" data-benefit="${b.id}" data-idx="${i}" title="Edit">✎</span><span class="mini-x" data-action="ref-del" data-benefit="${b.id}" data-idx="${i}" title="Remove">✕</span></div>`;
+    html += `<div class="ref-list">📚 ${escapeHtml(label || r.title || 'Reference')}${r.url && /^https?:\/\//i.test(r.url) ? ` · <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Open source</a>` : ''} <span class="mini-x" data-action="ref-edit" data-benefit="${b.id}" data-idx="${i}" title="Edit">✎</span><span class="mini-x" data-action="ref-del" data-benefit="${b.id}" data-idx="${i}" title="Remove">✕</span></div>`;
   });
   return html;
 }
@@ -775,7 +860,7 @@ async function renderHistoryView(root,actions){
   const changes=(await idbGetAll('changeLog')).sort((a,b)=>b.createdAt-a.createdAt);
   const list=document.getElementById('changeHistoryList');
   if(!changes.length) list.innerHTML='<div class="hint">No individual changes have been recorded yet. Changes made from this version onward will appear here.</div>';
-  for(const entry of changes){
+  for(const entry of changes.slice(0,150)){
     const row=document.createElement('div'); row.className='mini-row'; row.style.alignItems='flex-start';
     const info=document.createElement('div'); info.className='grow';
     const title=document.createElement('div'); title.textContent=entry.description;
@@ -1482,7 +1567,8 @@ function renderHomeView(root, actions){
   const active=benefits.filter(b=>!b.trashed);
   const placed=placements.filter(p=>{const b=benefitById(p.benefitId);return b&&!b.trashed;});
   const favCount=active.filter(b=>b.favorite).length;
-  const pending=active.filter(b=>placementsForBenefit(b.id).length===0&&!b.isFlashcard).length;
+  const nsNb=notebooks.find(n=>!n.parentId&&n.name===NEEDS_SORTING_NAME);
+  const pending=active.filter(b=>placementsForBenefit(b.id).length===0&&!b.isFlashcard).length+allPendingForHeadingsEverywhere().length+(nsNb?placementsForNotebook(nsNb.id).length:0);
   const recent=[...active].sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)).slice(0,4);
   document.getElementById('ctxTitle').textContent='Home';
   document.getElementById('ctxSub').textContent='Your Islamic knowledge library';
@@ -1511,7 +1597,7 @@ function renderHomeView(root, actions){
         <button class="quick-link" data-home-nav="import"><span>＋</span><div><b>Add Benefits</b><small>Bring new knowledge into Ledger</small></div><i>→</i></button>
       </div>
       <div class="home-panel">
-        <div class="home-panel-head"><div><div class="eyebrow">LIBRARY OVERVIEW</div><h2>Collection health</h2></div><span class="health-check">✓</span></div>
+        <div class="home-panel-head"><div><div class="eyebrow">LIBRARY OVERVIEW</div><h2>Collection health</h2></div>${pending===0?'<span class="health-check">✓</span>':''}</div>
         <div class="health-line"><span>Benefit placements</span><b>${placed.length.toLocaleString()}</b></div>
         <div class="health-line"><span>Categories</span><b>${notebooks.length.toLocaleString()}</b></div>
         <div class="health-line"><span>Uncategorised benefits</span><b>${pending.toLocaleString()}</b></div>
@@ -1524,343 +1610,7 @@ function renderHomeView(root, actions){
       ${recent.length?recent.map((b,i)=>`<div class="recent-benefit"><span class="recent-number">${String(i+1).padStart(2,'0')}</span><div class="recent-copy">${escapeHtml((b.text||'').slice(0,180))}${(b.text||'').length>180?'…':''}</div><span class="recent-arrow">↗</span></div>`).join(''):'<div class="empty-state">Your benefits will appear here once you add them.</div>'}
     </section>`;
   document.getElementById('homeStartStudy').onclick=()=>switchView({type:'study'});
-  root.querySelectorAll('[data-home-nav]').forEach(el=>el.onclick=()=>switchView({type:el.dataset.homeNav}));
-  document.getElementById('homeAllBenefits').onclick=()=>switchView({type:'all'});
-  document.getElementById('homeDashboard').onclick=()=>document.getElementById('statsBtn').click();
-}
-
-function renderView(){
-  rebuildIndexes();
-  const scrollY = window.scrollY;
-  const root=document.getElementById('viewRoot');
-  const actions=document.getElementById('topbarActions');
-  root.innerHTML=""; actions.innerHTML="";
-  document.onkeydown_triage=null;
-  if(view.type==='home') renderHomeView(root, actions);
-  else if(view.type==='import') renderImportView(root, actions);
-  else if(view.type==='triage') renderTriageView(root, actions);
-  else if(view.type==='masterbook') renderMasterBookView(root, actions);
-  else if(view.type==='study') renderStudyView(root, actions);
-  else if(view.type==='importCards') renderImportCardsView(root, actions);
-  else if(view.type==='triageCards') renderTriageCardsView(root, actions);
-  else if(view.type==='notebook') renderNotebookView(root, actions, view.id);
-  else if(view.type==='all') renderAllBenefitsView(root, actions);
-  else if(view.type==='questions') renderQuestionsView(root, actions);
-  else if(view.type==='needsSorting') renderNeedsSortingView(root, actions);
-  else if(view.type==='skipped') renderGlobalSkippedView(root, actions);
-  else if(view.type==='trash') renderTrashView(root, actions);
-  else if(view.type==='history') renderHistoryView(root, actions);
-  window.scrollTo(0, scrollY);
-}
-
-/* ===================== Copy helper ===================== */
-function makeCopyBtn(text){
-  const btn = document.createElement('button');
-  btn.className='icon-btn'; btn.textContent='📋 copy';
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const done = ()=>{ const orig=btn.textContent; btn.textContent='✓ copied'; setTimeout(()=>btn.textContent=orig,1100); };
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(done).catch(()=>alert("Couldn't copy — clipboard access may be blocked."));
-    } else { alert("Clipboard not available in this browser."); }
-  });
-  return btn;
-}
-
-/* ===================== Benefit splitting: on runs of "..." (or the single ellipsis character), OR on a
-   numbered-list marker at the START of a line (e.g. "1. " / "12) " / Arabic-Indic "٣. ") — some source
-   material numbers entries sequentially instead of using dots. Line breaks inside an entry are always kept. ===================== */
-function splitLines(text, dedupe, skipBlank){
-  let lines = text.split(/\.{3,}|\u2026|^[ \t]*[0-9٠-٩]+[.\)]\s+/gm);
-  lines = skipBlank ? lines.map(l=>l.trim()).filter(l=>l.length>0) : lines.map(l=>l.trim());
-  if(dedupe){ const seen=new Set(); lines = lines.filter(l=>{ if(seen.has(l)) return false; seen.add(l); return true; }); }
-  return lines;
-}
-
-/* A benefit block can end with a line like "###Fiqh > Purification > Wudu" — the full heading branch,
-   levels separated by ">". Everything before that line is the benefit text; that last line is stripped
-   out and returned separately as the path so the importer can file the benefit straight into it. */
-function extractHeadingPath(block){
-  const lines = block.split(/\r\n|\r|\n/);
-  let pathLine = -1;
-  for(let i=lines.length-1;i>=0;i--){ if(/^\s*###/.test(lines[i])){ pathLine = i; break; } }
-  if(pathLine===-1) return {text:block.trim(), path:null};
-  const path = lines[pathLine].replace(/^\s*###/,'').trim();
-  const text = lines.slice(0,pathLine).join('\n').trim();
-  return {text, path: path || null};
-}
-/* Walks/creates a full notebook chain from a "Category > Sub > Sub-sub" string and returns the leaf notebook. */
-function resolveNotebookPath(pathStr){
-  const parts = pathStr.split('>').map(s=>s.trim()).filter(Boolean);
-  let parentId = null, node = null;
-  for(const part of parts) node = findOrCreateChildNotebook(parentId, part), parentId = node.id;
-  return node;
-}
-
-/* ===================== IMPORT VIEW ===================== */
-function renderImportView(root, actions){
-  document.getElementById('ctxTitle').textContent="Import Text";
-  document.getElementById('ctxSub').textContent="\"...\" or a numbered list (1. 2. 3.) starts a new entry · a trailing \"### Category > Sub\" line auto-files it";
-  root.innerHTML = `
-    <div class="import-box">
-      <div class="drop-zone" id="dropZone">Drop a .txt file here, or paste directly into the box below</div>
-      <input type="file" id="fileInput" accept=".txt,text/plain" style="display:none;">
-      <textarea id="importText" placeholder="Paste your entire file here. A new entry starts either at three or more dots (...) or at a numbered list marker (1. / 2) / ٣.) at the start of a line — line breaks, tabs, and paragraph gaps otherwise stay inside the same entry.&#10;&#10;To auto-sort an entry, end its block with a line starting with ### and the full heading branch, e.g.:&#10;&#10;بعض الفوائد هنا&#10;###الفقه > الطهارة > الوضوء&#10;...&#10;&#10;Entries without a ### line are filed under the category (needs sorting) in the Master Book."></textarea>
-      <div class="import-opts">
-        <label><input type="radio" name="importKind" id="kindBenefit" checked> 📖 Benefits</label>
-        <label><input type="radio" name="importKind" id="kindQuestion"> ❓ Questions</label>
-        <label><input type="checkbox" id="optDedupe"> Skip exact duplicates</label>
-        <label><input type="checkbox" id="optMinLen" checked> Skip empty / whitespace-only entries</label>
-        <label><input type="checkbox" id="optUpdate" checked> Match existing benefits and add missing category placements without removing existing ones</label>
-      </div>
-      <div class="hint" style="margin:-4px 0 10px;">Questions are tagged with a ❓ badge everywhere they appear, but sort into the same categories and Master Book as Benefits — they're not archived separately like Flashcards are.</div>
-      <div class="import-preview" id="importPreview">0 entries detected</div>
-      <button class="btn btn-primary" id="doImportBtn">Import</button>
-    </div>`;
-  const ta = document.getElementById('importText');
-  const preview = document.getElementById('importPreview');
-  function updatePreview(){
-    const lines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
-    const withPath = lines.filter(l=>extractHeadingPath(l).path).length;
-    preview.textContent = lines.length + " entr" + (lines.length===1?"y":"ies") + " detected"
-      + (withPath ? ` — ${withPath} will auto-sort by heading, ${lines.length-withPath} will be filed under needs sorting` : '');
-  }
-  ta.addEventListener('input', updatePreview);
-  document.getElementById('optDedupe').addEventListener('change', updatePreview);
-  document.getElementById('optMinLen').addEventListener('change', updatePreview);
-  document.getElementById('fileInput').addEventListener('change', (e)=>{
-    const f=e.target.files[0]; if(!f) return;
-    const r=new FileReader(); r.onload=(ev)=>{ ta.value = ev.target.result; updatePreview(); }; r.readAsText(f);
-  });
-  const dz = document.getElementById('dropZone');
-  dz.addEventListener('click', ()=>document.getElementById('fileInput').click());
-  dz.addEventListener('dragover',(e)=>{ e.preventDefault(); dz.style.borderColor='var(--teal)'; });
-  dz.addEventListener('dragleave',()=>{ dz.style.borderColor='var(--line)'; });
-  dz.addEventListener('drop',(e)=>{
-    e.preventDefault(); dz.style.borderColor='var(--line)';
-    const f=e.dataTransfer.files[0]; if(!f) return;
-    const r=new FileReader(); r.onload=(ev)=>{ ta.value=ev.target.result; updatePreview(); }; r.readAsText(f);
-  });
-  document.getElementById('doImportBtn').addEventListener('click', async ()=>{
-    const rawLines = splitLines(ta.value, document.getElementById('optDedupe').checked, document.getElementById('optMinLen').checked);
-    if(!rawLines.length){ alert("Nothing to import — paste some text first."); return; }
-    const isQuestion = document.getElementById('kindQuestion').checked;
-    let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
-    await snapshotNow('Before import ('+rawLines.length+' entries)',true,true);
-    const updateExisting = document.getElementById('optUpdate').checked;
-    const existingByKey = new Map();
-    if(updateExisting){ for(const x of benefits){ if(x.trashed) continue; const k = normKey(x.text); if(k && !existingByKey.has(k)) existingByKey.set(k, x); } }
-    let added = 0, updated = 0, skippedDup = 0, pendingNew = 0;
-    const beforeBatch={benefits:benefits.map(x=>({...x})),notebooks:notebooks.map(x=>({...x})),placements:placements.map(x=>({...x}))};
-    try {
-    for(const block of rawLines){
-      const {text, path} = extractHeadingPath(block);
-      if(!text) continue;
-      let leaf = null;
-      if(!path) leaf = needsSortingNotebook();
-      else {
-        leaf = resolveNotebookPath(path);
-        /* if that heading has sub-headings, file into its "أخرى" so the benefit shows in the Master Book instead of hiding in Needs Sub-Sorting */
-        if(childrenOf(leaf.id).length>0) leaf = findOrCreateChildNotebook(leaf.id, 'أخرى');
-      }
-      const key = updateExisting ? normKey(text) : null;
-      const existing = key ? existingByKey.get(key) : null;
-      if(existing){
-        if(isQuestion) existing.isQuestion = true;
-        if(leaf && path){
-          const alreadyThere=placementsForBenefit(existing.id).some(p=>p.notebookId===leaf.id);
-          if(!alreadyThere) await confirmIntoNotebooks(existing.id, [leaf.id]);
-          await idbPut('benefits', existing);
-          updated++;
-        } else { await idbPut('benefits', existing); skippedDup++; }
-        rebuildIndexes();
-        continue;
-      }
-      const b={id:uid('ben'), text, trashed:false, createdAt:Date.now(), order:order++};
-      if(isQuestion) b.isQuestion = true;
-      benefits.push(b); await idbPut('benefits', b);
-      await confirmIntoNotebooks(b.id, [leaf.id]);
-      if(!path) pendingNew++;
-      if(key) existingByKey.set(key, b);
-      added++;
-      rebuildIndexes();
-    }
-    } catch(importError) {
-      benefits=beforeBatch.benefits;notebooks=beforeBatch.notebooks;placements=beforeBatch.placements;
-      await idbReplaceAll('benefits',benefits);await idbReplaceAll('notebooks',notebooks);await idbReplaceAll('placements',placements);
-      rebuildIndexes();renderSidebar();renderView();
-      alert('Import was cancelled safely. No partial batch was kept. Details: '+(importError.message||importError));
-      return;
-    }
-    await snapshotNow('After successful import ('+added+' new, '+updated+' matched)',true);
-    ta.value=""; updatePreview();
-    alert(`Import receipt — ${added} new benefits, ${updated} existing benefits matched, ${skippedDup} existing entries without a new category path, ${pendingNew} sent to Needs Sorting. Batch completed and saved.`);
-    renderSidebar();
-    switchView({type:'masterbook'});
-  });
-}
-
-/* ===================== IMPORT FLASHCARDS VIEW ===================== */
-function renderImportCardsView(root, actions){
-  document.getElementById('ctxTitle').textContent="Import Flashcards";
-  document.getElementById('ctxSub').textContent="Understands \"Q:\" text decks AND Anki tab-separated exports — auto-detected, question+answer become one benefit";
-  root.innerHTML = `
-    <div class="import-box">
-      <div class="drop-zone" id="dropZoneCards">Drop a flashcard .txt file here, or paste directly into the box below</div>
-      <input type="file" id="fileInputCards" accept=".txt,text/plain" style="display:none;">
-      <textarea id="importTextCards" placeholder="Paste a flashcard deck here. Either format works, auto-detected:&#10;Q: question&#10;A: answer&#10;&#10;...or an Anki tab-separated export (#separator:tab, question and answer separated by a tab)."></textarea>
-      <div class="import-preview" id="importPreviewCards">0 cards detected</div>
-      <button class="btn btn-primary" id="doImportCardsBtn">Import as Flashcards</button>
-    </div>`;
-  const ta = document.getElementById('importTextCards');
-  const preview = document.getElementById('importPreviewCards');
-  function updatePreview(){
-    const cards = detectAndSplitCards(ta.value);
-    preview.textContent = cards.length + " card" + (cards.length===1?"":"s") + " detected";
-  }
-  ta.addEventListener('input', updatePreview);
-  document.getElementById('fileInputCards').addEventListener('change',(e)=>{
-    const f=e.target.files[0]; if(!f) return;
-    const r=new FileReader(); r.onload=(ev)=>{ ta.value=ev.target.result; updatePreview(); }; r.readAsText(f);
-  });
-  const dz = document.getElementById('dropZoneCards');
-  dz.addEventListener('click', ()=>document.getElementById('fileInputCards').click());
-  dz.addEventListener('dragover',(e)=>{ e.preventDefault(); dz.style.borderColor='var(--teal)'; });
-  dz.addEventListener('dragleave',()=>{ dz.style.borderColor='var(--line)'; });
-  dz.addEventListener('drop',(e)=>{
-    e.preventDefault(); dz.style.borderColor='var(--line)';
-    const f=e.dataTransfer.files[0]; if(!f) return;
-    const r=new FileReader(); r.onload=(ev)=>{ ta.value=ev.target.result; updatePreview(); }; r.readAsText(f);
-  });
-  document.getElementById('doImportCardsBtn').addEventListener('click', async ()=>{
-    const cards = detectAndSplitCards(ta.value);
-    if(!cards.length){ alert("Nothing to import — paste a flashcard deck first (either \"Q:\" text or an Anki tab-separated export)."); return; }
-    let order = benefits.length ? Math.max(...benefits.map(b=>b.order))+1 : 0;
-    for(const card of cards){
-      const b={id:uid('ben'), text:card, trashed:false, createdAt:Date.now(), order:order++, isFlashcard:true};
-      benefits.push(b); await idbPut('benefits', b);
-    }
-    ta.value=""; updatePreview();
-    alert(`Imported ${cards.length} flashcards. Now sort them with Triage: Flashcards.`);
-    switchView({type:'triageCards'});
-  });
-}
-
-/* ===================== TRIAGE FLASHCARDS VIEW — 20 at a time, leftovers auto-archive on Next ===================== */
-function renderTriageCardsView(root, actions){
-  document.getElementById('ctxTitle').textContent = "Triage: Flashcards";
-  const allPending = pendingFlashcards();
-  document.getElementById('ctxSub').textContent = `${allPending.length} pending · reviewing ${Math.min(cardBatchSize, allPending.length)} at a time`;
-
-  const nbs = topLevelNotebooks().filter(n=>!n.isFlashcardArchive);
-  const batch = allPending.slice(0, cardBatchSize);
-  const batchIds = new Set(batch.map(b=>b.id));
-
-  const sizeLabel = document.createElement('label');
-  sizeLabel.className = 'chk';
-  sizeLabel.style.marginRight = '8px';
-  sizeLabel.innerHTML = `Batch size <input type="text" id="cardBatchSizeInput" style="width:44px; text-align:center; margin-left:6px;" value="${cardBatchSize}">`;
-  actions.appendChild(sizeLabel);
-
-  const nextBtn = document.createElement('button'); nextBtn.className='btn btn-primary btn-sm';
-  const leftoverCount = batch.filter(b=>!isSkipped(b,'cards')).length;
-  nextBtn.textContent = leftoverCount>0 ? `Next ${Math.min(cardBatchSize, allPending.length)} → (archives ${leftoverCount} unsorted)` : `Next ${Math.min(cardBatchSize, allPending.length)} →`;
-  nextBtn.disabled = allPending.length===0;
-  nextBtn.addEventListener('click', async ()=>{
-    const archive = await getOrCreateFlashcardsArchive();
-    const stillPending = pendingFlashcards().filter(b=>batchIds.has(b.id) && !isSkipped(b,'cards'));
-    for(const b of stillPending) await confirmIntoNotebooks(b.id, [archive.id]);
-    renderSidebar(); renderView();
-  });
-  actions.appendChild(nextBtn);
-
-  document.getElementById('cardBatchSizeInput').addEventListener('input', (e)=>{
-    const v = parseInt(e.target.value,10);
-    if(v && v>0){ cardBatchSize = v; renderView(); }
-  });
-
-  root.innerHTML = `
-    <div class="mini-row" style="margin-bottom:12px;">
-      <span class="grow">Put everything into one category instead of reviewing card by card:</span>
-      <select id="bulkCardNb" style="min-width:150px;"></select>
-      <button class="btn btn-primary btn-sm" id="bulkCardBatchBtn">This batch (${batch.length})</button>
-      <button class="btn btn-danger btn-sm" id="bulkCardAllBtn">ALL pending (${allPending.length})</button>
-    </div>
-    <div id="cardsRangeHolder"></div>
-    <div id="cardsList"></div><div id="cardsSkipHolder"></div>`;
-
-  if(batch.length>0 && nbs.length>0){
-    renderPositionRangeBar(document.getElementById('cardsRangeHolder'), batch, {key:'cards', targets:nbs, afterAction:()=>{ renderSidebar(); renderView(); }});
-  }
-
-  const bulkSelect = document.getElementById('bulkCardNb');
-  bulkSelect.innerHTML = nbs.map(n=>`<option value="${n.id}">${escapeHtml(n.name)}</option>`).join('') || '<option value="">No notebooks yet</option>';
-  document.getElementById('bulkCardBatchBtn').addEventListener('click', async ()=>{
-    const nbId = bulkSelect.value; if(!nbId) return;
-    const nb = nbById(nbId);
-    if(!confirm(`Send all ${batch.length} cards in this batch to "${nb.name}"?`)) return;
-    for(const b of batch) await confirmIntoNotebooks(b.id, [nbId]);
-    renderSidebar(); renderView();
-  });
-  document.getElementById('bulkCardAllBtn').addEventListener('click', async ()=>{
-    const nbId = bulkSelect.value; if(!nbId) return;
-    const nb = nbById(nbId);
-    if(!confirm(`Send ALL ${allPending.length} pending flashcards to "${nb.name}"? This can take a moment for a large deck.`)) return;
-    const targets = pendingFlashcards();
-    for(const b of targets) await confirmIntoNotebooks(b.id, [nbId]);
-    renderSidebar(); renderView();
-  });
-
-  const listEl = document.getElementById('cardsList');
-  if(nbs.length===0){
-    listEl.innerHTML = `<div class="empty"><div class="big">▢</div><div>No notebooks yet. Add one from the sidebar first.</div></div>`;
-  } else if(batch.length===0){
-    listEl.innerHTML = `<div class="empty"><div class="big">✓</div><div>${allPending.length===0?"No flashcards pending — import a deck first.":"Nothing pending right now."}</div></div>`;
-  } else {
-    batch.forEach((b,idx)=>listEl.appendChild(renderTriageRow(b, nbs, 'cards', idx===0, (name)=>findOrCreateChildNotebook(null,name))));
-  }
-  const skipHolder = document.getElementById('cardsSkipHolder');
-  renderSkippedBlock(skipHolder, 'cards', ()=>{ renderSidebar(); renderView(); });
-}
-
-/* ===================== Skipped list widget (shared) ===================== */
-/* ===================== Shared "select rows X to Y" bulk bar — works on any ordered list of benefits ===================== */
-function renderPositionRangeBar(container, items, opts){
-  const bar = document.createElement('div'); bar.className='mini-row'; bar.style.cssText += 'flex-wrap:wrap; gap:8px; margin-bottom:10px;';
-  bar.innerHTML = `<span>Select rows #<input type="text" id="posFrom_${opts.key}" style="width:50px; text-align:center;"> to #<input type="text" id="posTo_${opts.key}" style="width:50px; text-align:center;"> (of ${items.length} shown)</span>`;
-  function getSlice(){
-    const from = parseInt(document.getElementById('posFrom_'+opts.key).value,10);
-    const to = parseInt(document.getElementById('posTo_'+opts.key).value,10);
-    if(!from || !to) return null;
-    const lo = Math.max(1,Math.min(from,to))-1, hi = Math.min(items.length,Math.max(from,to))-1;
-    return items.slice(lo, hi+1);
-  }
-  if(opts.targets && opts.targets.length){
-    const sel = document.createElement('select'); sel.id='posCatSel_'+opts.key; sel.style.minWidth='130px';
-    sel.innerHTML = opts.targets.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
-    bar.appendChild(sel);
-    const catBtn = document.createElement('button'); catBtn.className='btn btn-primary btn-sm'; catBtn.textContent='Categorize range →';
-    catBtn.addEventListener('click', async ()=>{
-      const slice = getSlice();
-      if(!slice){ alert("Enter both a From and To row number."); return; }
-      if(slice.length===0){ alert("No rows found in that range."); return; }
-      const nbId = sel.value, nbName = sel.options[sel.selectedIndex].textContent;
-      if(!confirm(`Categorize ${slice.length} benefit(s) into "${nbName}"?`)) return;
-      const allCreated = [];
-      for(const b of slice){ const created = await confirmIntoNotebooks(b.id,[nbId]); allCreated.push(...created); }
-      pushUndo(`categorized ${slice.length} benefit(s) → ${nbName}`, ()=>undoPlacements(allCreated));
-      opts.afterAction();
-    });
-    bar.appendChild(catBtn);
-  }
-  const delBtn = document.createElement('button'); delBtn.className='btn btn-danger btn-sm'; delBtn.textContent='🗑 Delete range';
-  delBtn.addEventListener('click', async ()=>{
-    const slice = getSlice();
-    if(!slice){ alert("Enter both a From and To row number."); return; }
-    if(slice.length===0){ alert("No rows found in that range."); return; }
-    if(!confirm(`Trash ${slice.length} benefit(s)? Recoverable from Trash until emptied.`)) return;
-    for(const b of slice){ b.trashed=true; await idbPut('benefits', b); }
-    pushUndo(`trashed ${slice.length} benefit(s)`, async ()=>{ for(const b of slice){ b.trashed=false; await idbPut('benefits', b); } });
+  root.querySel    pushUndo(`trashed ${slice.length} benefit(s)`, async ()=>{ for(const b of slice){ b.trashed=false; await idbPut('benefits', b); } });
     opts.afterAction();
   });
   bar.appendChild(delBtn);
@@ -2607,6 +2357,7 @@ function refreshOpenBookIfNeeded(){
 
 /* ===================== Shared chunked copy controls ===================== */
 function lineToPlainText(line){
+  if(line.kind==='part') return `\n\n${line.text}\n${'='.repeat(line.text.length)}\n\n`;
   const indent = '  '.repeat(line.depth||0);
   if(line.kind==='heading'){
     const label = line.numberLabel ? line.numberLabel+' ' : '';
@@ -2706,7 +2457,14 @@ function getStudySession(){
   let session=null;
   try{session=JSON.parse(localStorage.getItem(STUDY_SESSION_KEY)||'null');}catch(e){}
   const valid=new Set(currentStudyPlacements().map(r=>r.placementId));
-  if(!session||session.date!==today||!Array.isArray(session.ids)||session.ids.some(id=>!valid.has(id))) session=createStudySession();
+  if(!session||session.date!==today||!Array.isArray(session.ids)) session=createStudySession();
+  else{
+    const gone=session.ids.slice(0,session.index||0).filter(id=>!valid.has(id)).length;
+    session.ids=session.ids.filter(id=>valid.has(id));
+    session.index=Math.max(0,(session.index||0)-gone);
+    session.target=session.ids.length;
+    localStorage.setItem(STUDY_SESSION_KEY,JSON.stringify(session));
+  }
   return session;
 }
 function renderStudyView(root,actions){
@@ -3411,9 +3169,9 @@ document.getElementById('dataBtn').addEventListener('click', ()=>openModal('moda
 document.getElementById('exportAllBtn').addEventListener('click', async ()=>{
   try{
     await snapshotNow('Before full export',true,true);
-    const [changeLog,snapshots,snapshotData]=await Promise.all([idbGetAll('changeLog'),idbGetAll('snapshots'),idbGetAll('snapshotData')]);
-    const backup={format:'ledger-backup',version:2,exportedAt:new Date().toISOString(),databaseName:DB_NAME,benefits,notebooks,placements,changeLog,snapshots,snapshotData};
-    const blob = new Blob(["\uFEFF"+JSON.stringify(backup,null,2)],{type:'application/json;charset=utf-8'});
+    const changeLog=await idbGetAll('changeLog');
+    const backup={format:'ledger-backup',version:2,exportedAt:new Date().toISOString(),databaseName:DB_NAME,benefits,notebooks,placements,changeLog};
+    const blob = new Blob(["\uFEFF"+JSON.stringify(backup)],{type:'application/json;charset=utf-8'});
     const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ledger-complete-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
   }catch(err){alert('Backup could not be completed: '+(err.message||err));}
 });
@@ -3434,6 +3192,7 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
         for(const b of data.benefits){if(!benefits.some(x=>x.id===b.id)){benefits.push(b);await idbPut('benefits',b);}}
         for(const pl of data.placements){if(!placements.some(x=>x.id===pl.id)){placements.push(pl);await idbPut('placements',pl);}}
       }catch(err){benefits=before.benefits;notebooks=before.notebooks;placements=before.placements;await idbReplaceAll('benefits',benefits);await idbReplaceAll('notebooks',notebooks);await idbReplaceAll('placements',placements);throw err;}
+      for(const c of (data.changeLog||[])){ if(!(await idbGet('changeLog',c.id))) await idbPutRaw('changeLog',c); }
       rebuildIndexes();await snapshotNow('After backup merge',true);renderSidebar();renderView();
       alert(`Backup merge complete. Added ${counts.benefits} benefits, ${counts.notebooks} headings and ${counts.placements} placements. Existing records were preserved.`);
     }catch(err){alert("Couldn't import this backup safely: "+(err.message||err));}
@@ -3449,343 +3208,4 @@ document.getElementById('fullResetBtn').addEventListener('click', async ()=>{
   for(const nb of notebooks) await idbDelete('notebooks', nb.id);
   placements = []; benefits = []; notebooks = [];
   for(const name of ["Aqeedah","Fiqh","Usul","Miscellaneous"]){
-    const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PALETTE.length], parentId:null, nextNumber:1, createdAt:Date.now()};
-    notebooks.push(nb); await idbPut('notebooks',nb);
-  }
-  undoStack=[];
-  closeModal('modalData');
-  switchView({type:'import'});
-  alert("Everything has been reset.");
-});
-
-/* ===================== Add benefit to more headings — also lets you remove it from ones it's already in ===================== */
-let ahBenefitId = null;
-function openAddHeadingsModal(benefitId){
-  ahBenefitId = benefitId;
-  const b = benefitById(benefitId);
-  document.getElementById('ahBenefitPreview').textContent = b ? (b.text.length>140 ? b.text.slice(0,140)+'…' : b.text) : '';
-  document.getElementById('ahSearch').value = '';
-  renderAhTree('');
-  openModal('modalAddHeadings');
-}
-document.getElementById('ahSearch').addEventListener('input',(e)=>renderAhTree(e.target.value));
-function renderAhTree(query){
-  const wrap = document.getElementById('ahTree');
-  wrap.innerHTML='';
-  const already = new Set((placementsForBenefit(ahBenefitId)||[]).map(p=>p.notebookId));
-  const q = query.trim();
-  if(q){
-    const matches = notebooks.filter(n=>matchesQuery(n.name,q));
-    if(matches.length===0){ wrap.innerHTML='<div class="hint">No matches.</div>'; return; }
-    matches.forEach(nb=>wrap.appendChild(renderAhRow(nb, 0, already)));
-    return;
-  }
-  function renderLevel(parentId, depth){
-    (parentId===null ? topLevelNotebooks() : childrenOf(parentId)).forEach(nb=>{
-      wrap.appendChild(renderAhRow(nb, depth, already));
-      renderLevel(nb.id, depth+1);
-    });
-  }
-  renderLevel(null, 0);
-}
-function renderAhRow(nb, depth, alreadySet){
-  const row = document.createElement('div');
-  row.className = 'nb-item';
-  row.style.marginLeft = (depth*14)+'px';
-  const isAlready = alreadySet.has(nb.id);
-  row.innerHTML = `<span class="nb-dot" style="background:${nb.color}"></span><span class="nb-name">${escapeHtml(nb.name)}</span>${isAlready?'<span class="nb-count">✓ here</span><button class="icon-btn danger" data-role="ahremove" title="Remove from this heading">✕ remove</button>':''}`;
-  if(isAlready){
-    row.style.opacity='0.85';
-    row.querySelector('[data-role="ahremove"]').addEventListener('click', async (e)=>{
-      e.stopPropagation();
-      if(!confirm(`Remove this benefit from "${nb.name}"? It stays everywhere else it's placed.`)) return;
-      const plc = (placementsForBenefit(ahBenefitId)||[]).find(p=>p.notebookId===nb.id);
-      if(plc){ await idbDelete('placements', plc.id); placements = placements.filter(x=>x.id!==plc.id); }
-      renderSidebar();
-      renderAhTree(document.getElementById('ahSearch').value);
-      refreshOpenBookIfNeeded();
-      renderView();
-    });
-  } else {
-    row.style.cursor='pointer';
-    row.addEventListener('click', async ()=>{
-      const created = await confirmIntoNotebooks(ahBenefitId, [nb.id]);
-      pushUndo(`added a benefit → ${nb.name}`, ()=>undoPlacements(created));
-      renderSidebar();
-      renderAhTree(document.getElementById('ahSearch').value);
-      refreshOpenBookIfNeeded();
-      renderView();
-    });
-  }
-  return row;
-}
-/* ===================== Shared inline text editor (used by book/master-book paragraphs) ===================== */
-function afterMutation(){
-  renderSidebar();
-  refreshOpenBookIfNeeded();
-  renderView();
-}
-function editBenefitInline(benefitId, pEl){
-  const b = benefitById(benefitId);
-  if(!b) return;
-  const span = pEl.querySelector('[data-role="ptext"]');
-  const orig = span.innerHTML;
-  span.outerHTML = `<span data-role="ptext"><textarea style="width:100%; min-height:60px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:6px; font-size:13.5px;">${escapeHtml(b.text)}</textarea><div style="margin-top:4px;"><button class="btn btn-primary btn-sm" data-role="save-inline">Save</button> <button class="btn btn-ghost btn-sm" data-role="cancel-inline">Cancel</button></div></span>`;
-  pEl.querySelector('[data-role="save-inline"]').addEventListener('click', async ()=>{
-    b.text = pEl.querySelector('textarea').value;
-    await idbPut('benefits', b);
-    afterMutation();
-  });
-  pEl.querySelector('[data-role="cancel-inline"]').addEventListener('click', ()=>{
-    pEl.querySelector('[data-role="ptext"]').outerHTML = `<span data-role="ptext">${orig}</span>`;
-  });
-}
-
-document.addEventListener('click', async (e)=>{
-  if(!e.target.closest('[data-role="rowmenu"]')){
-    document.querySelectorAll('.row-menu-wrap.open').forEach(w=>w.classList.remove('open'));
-  }
-  const toggleMenuBtn = e.target.closest('[data-action="toggle-menu"]');
-  if(toggleMenuBtn){
-    const wrap = toggleMenuBtn.closest('[data-role="rowmenu"]');
-    const wasOpen = wrap.classList.contains('open');
-    document.querySelectorAll('.row-menu-wrap.open').forEach(w=>w.classList.remove('open'));
-    if(!wasOpen) wrap.classList.add('open');
-    return;
-  }
-  const addHeadHereP = e.target.closest('[data-action="add-heading-here-p"]');
-  if(addHeadHereP){
-    const parentId = addHeadHereP.dataset.notebook || null;
-    const parent = parentId ? nbById(parentId) : null;
-    const name = prompt(parent?`New heading inside "${parent.name}":`:"New top-level book name:");
-    if(name && name.trim()){
-      const h = findOrCreateChildNotebook(parentId, name.trim());
-      pushUndo(`added heading "${h.name}"`, ()=>deleteNotebookAndDescendants(h.id));
-      afterMutation();
-    }
-    return;
-  }
-  const addBenHereP = e.target.closest('[data-action="add-benefit-here-p"]');
-  if(addBenHereP){
-    const parentId = addBenHereP.dataset.notebook || null;
-    if(!parentId){ alert("Can't add a benefit without a category to put it in — use Import Text instead."); return; }
-    const text = prompt("New benefit text:");
-    if(text && text.trim()){
-      let order = benefits.length ? Math.max(...benefits.map(x=>x.order))+1 : 0;
-      const nb = {id:uid('ben'), text:text.trim(), trashed:false, createdAt:Date.now(), order};
-      benefits.push(nb); await idbPut('benefits', nb);
-      const created = await confirmIntoNotebooks(nb.id, [parentId]);
-      pushUndo(`added a new benefit`, async ()=>{ await undoPlacements(created); await idbDelete('benefits', nb.id); benefits=benefits.filter(x=>x.id!==nb.id); });
-      afterMutation();
-    }
-    return;
-  }
-  const addBtn = e.target.closest('[data-action="addhead"]');
-  if(addBtn){ openAddHeadingsModal(addBtn.dataset.benefit); return; }
-
-  const gotoNbBtn = e.target.closest('[data-action="goto-notebook"]');
-  if(gotoNbBtn){ gotoBenefitInNotebook(gotoNbBtn.dataset.benefit, gotoNbBtn.dataset.notebook||null); return; }
-
-  const hlSelectBtn = e.target.closest('[data-action="hl-select"]');
-  if(hlSelectBtn){
-    const pEl = hlSelectBtn.closest('p');
-    const textEl = pEl ? pEl.querySelector('[data-role="ptext"]') : null;
-    const offsets = textEl ? getSelectionOffsetsWithin(textEl) : null;
-    if(!offsets){ alert("Select some text inside the benefit first, then click Highlight."); return; }
-    const b = benefitById(hlSelectBtn.dataset.benefit);
-    if(b){ b.highlights = b.highlights || []; b.highlights.push(offsets); await idbPut('benefits', b); afterMutation(); }
-    return;
-  }
-  const hlClearBtn = e.target.closest('[data-action="hl-clear"]');
-  if(hlClearBtn){
-    const b = benefitById(hlClearBtn.dataset.benefit);
-    if(b){ b.highlights = []; await idbPut('benefits', b); afterMutation(); }
-    return;
-  }
-  const favBtn = e.target.closest('[data-action="fav-benefit"]');
-  if(favBtn){
-    const b = benefitById(favBtn.dataset.benefit);
-    if(b){ b.favorite = !b.favorite; await idbPut('benefits', b); afterMutation(); }
-    return;
-  }
-  const addRefBtn=e.target.closest('[data-action="add-reference"]');
-  if(addRefBtn){
-    const b=benefitById(addRefBtn.dataset.benefit);if(!b)return;
-    const book=prompt('Book / source title:');if(book===null||!book.trim())return;
-    const author=prompt('Author / speaker (optional):','')||'';
-    const volume=prompt('Volume (optional):','')||'';
-    const page=prompt('Page (optional):','')||'';
-    const hadithNumber=prompt('Hadith number (optional):','')||'';
-    const chapter=prompt('Chapter / section (optional):','')||'';
-    const url=prompt('URL (optional):','')||'';
-    b.references=b.references||[];b.references.push({book:book.trim(),author:author.trim(),volume:volume.trim(),page:page.trim(),hadithNumber:hadithNumber.trim(),chapter:chapter.trim(),url:url.trim(),addedAt:Date.now()});
-    await idbPut('benefits',b);afterMutation();return;
-  }
-  const refEdit=e.target.closest('[data-action="ref-edit"]');
-  if(refEdit){
-    const b=benefitById(refEdit.dataset.benefit),i=+refEdit.dataset.idx;if(!b||!b.references?.[i])return;
-    const r=b.references[i];const book=prompt('Book / source title:',r.book||r.title||'');if(book===null)return;
-    r.book=book.trim();r.author=(prompt('Author / speaker:',r.author||'')??r.author)||'';r.volume=(prompt('Volume:',r.volume||'')??r.volume)||'';r.page=(prompt('Page:',r.page||'')??r.page)||'';r.hadithNumber=(prompt('Hadith number:',r.hadithNumber||'')??r.hadithNumber)||'';r.chapter=(prompt('Chapter / section:',r.chapter||'')??r.chapter)||'';r.url=(prompt('URL:',r.url||'')??r.url)||'';
-    await idbPut('benefits',b);afterMutation();return;
-  }
-  const refDel=e.target.closest('[data-action="ref-del"]');
-  if(refDel){const b=benefitById(refDel.dataset.benefit),i=+refDel.dataset.idx;if(b&&confirm('Remove this reference?')){b.references.splice(i,1);await idbPut('benefits',b);afterMutation();}return;}
-  const addNoteBtn = e.target.closest('[data-action="add-note-benefit"]');
-  if(addNoteBtn){
-    const b = benefitById(addNoteBtn.dataset.benefit);
-    if(b){ await addNoteToBenefit(b); afterMutation(); }
-    return;
-  }
-  const addQBtn = e.target.closest('[data-action="add-question-benefit"]');
-  if(addQBtn){
-    const b = benefitById(addQBtn.dataset.benefit);
-    if(b){ await addQuestionToBenefit(b); afterMutation(); }
-    return;
-  }
-  const nqEditBtn = e.target.closest('[data-action="nq-edit"]');
-  if(nqEditBtn){
-    const b = benefitById(nqEditBtn.dataset.benefit);
-    const kind = nqEditBtn.dataset.kind, idx = +nqEditBtn.dataset.idx;
-    if(b){
-      const arr = kind==='note' ? (b.notes=b.notes||[]) : (b.questions=b.questions||[]);
-      const val = prompt(`Edit ${kind}:`, arr[idx]);
-      if(val!==null){
-        if(val.trim()) arr[idx] = val.trim(); else arr.splice(idx,1);
-        await idbPut('benefits', b); afterMutation();
-      }
-    }
-    return;
-  }
-  const nqDelBtn = e.target.closest('[data-action="nq-del"]');
-  if(nqDelBtn){
-    const b = benefitById(nqDelBtn.dataset.benefit);
-    const kind = nqDelBtn.dataset.kind, idx = +nqDelBtn.dataset.idx;
-    if(b){
-      const arr = kind==='note' ? (b.notes||[]) : (b.questions||[]);
-      if(confirm(`Remove this ${kind}?`)){ arr.splice(idx,1); await idbPut('benefits', b); afterMutation(); }
-    }
-    return;
-  }
-  const editBtn = e.target.closest('[data-action="edit-benefit"]');
-  if(editBtn){ editBenefitInline(editBtn.dataset.benefit, editBtn.closest('p')); return; }
-
-  const trashBenefitBtn = e.target.closest('[data-action="trash-benefit"]');
-  if(trashBenefitBtn){
-    const b = benefitById(trashBenefitBtn.dataset.benefit);
-    if(b && confirm("Trash this benefit entirely? It disappears from every notebook (recoverable from Trash).")){
-      b.trashed = true; await idbPut('benefits', b); afterMutation();
-    }
-    return;
-  }
-  const removeHereBtn = e.target.closest('[data-action="remove-here"]');
-  if(removeHereBtn){
-    if(confirm("Remove this benefit from this notebook only? It stays everywhere else.")){
-      const plId = removeHereBtn.dataset.placement;
-      await idbDelete('placements', plId);
-      placements = placements.filter(x=>x.id!==plId);
-      afterMutation();
-    }
-    return;
-  }
-
-  const moveUp = e.target.closest('[data-action="move-p-up"]');
-  const moveDown = e.target.closest('[data-action="move-p-down"]');
-  if(moveUp||moveDown){
-    const btn = moveUp||moveDown;
-    await movePlacementSibling(btn.dataset.notebook, btn.dataset.placement, moveUp?-1:1);
-    afterMutation();
-    return;
-  }
-  const moveHUp = e.target.closest('[data-action="move-h-up"]');
-  const moveHDown = e.target.closest('[data-action="move-h-down"]');
-  if(moveHUp||moveHDown){
-    const btn = moveHUp||moveHDown;
-    const nb = nbById(btn.dataset.notebook);
-    if(nb){ await moveNotebookSibling(nb, moveHUp?-1:1); afterMutation(); }
-    return;
-  }
-  const delHeading = e.target.closest('[data-action="del-heading"]');
-  if(delHeading){
-    const nb = nbById(delHeading.dataset.notebook);
-    if(nb && confirm(`Delete heading "${nb.name}" and everything nested under it? Benefits are kept — only placements here are removed.`)){
-      await deleteNotebookAndDescendants(nb.id);
-      refreshOpenBookIfNeeded();
-      hardRefresh();
-    }
-    return;
-  }
-  const dupBtn = e.target.closest('[data-action="dup-notebook"]');
-  if(dupBtn){
-    const nb = nbById(dupBtn.dataset.notebook);
-    if(nb && confirm(`Duplicate "${nb.name}" and everything nested inside it, with fully independent copies of every benefit? Safe to experiment on afterwards.`)){
-      dupBtn.textContent = '⏳ duplicating…'; dupBtn.disabled = true;
-      const copy = await duplicateNotebookDeep(nb, nb.parentId);
-      alert(`Created "${copy.name}". Your original is untouched.`);
-      afterMutation();
-    }
-    return;
-  }
-  const renameBtn = e.target.closest('[data-action="rename-notebook"]');
-  if(renameBtn){
-    const nb = nbById(renameBtn.dataset.notebook);
-    if(nb){
-      const n = prompt("Rename:", nb.name);
-      if(n && n.trim()){ nb.name = n.trim(); await idbPut('notebooks', nb); afterMutation(); }
-    }
-    return;
-  }
-  const addHeadingHereBtn = e.target.closest('[data-action="add-heading-here"]');
-  if(addHeadingHereBtn){
-    const parent = nbById(addHeadingHereBtn.dataset.notebook);
-    if(parent){
-      const name = prompt(`New heading inside "${parent.name}":`);
-      if(name && name.trim()){
-        const h = findOrCreateChildNotebook(parent.id, name.trim());
-        pushUndo(`added heading "${h.name}"`, ()=>deleteNotebookAndDescendants(h.id));
-        alert(`Added "${h.name}". It won't show in the book until you place a benefit in it — use the 🏷 button on any benefit to send it there.`);
-        afterMutation();
-      }
-    }
-    return;
-  }
-});
-
-/* ===================== Modal plumbing ===================== */
-function openModal(id){ document.getElementById(id).classList.add('show'); }
-function closeModal(id){ document.getElementById(id).classList.remove('show'); }
-document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',(e)=>e.target.closest('.modal-overlay').classList.remove('show')));
-document.querySelectorAll('.modal-overlay').forEach(ov=>ov.addEventListener('click',(e)=>{ if(e.target===ov) ov.classList.remove('show'); }));
-document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') document.querySelectorAll('.modal-overlay.show').forEach(m=>m.classList.remove('show')); });
-
-/* ===================== Theme ===================== */
-function updateThemeButtons(){
-  const t=document.documentElement.getAttribute('data-theme');
-  document.getElementById('themeDark').classList.toggle('active', t==='dark');
-  document.getElementById('themeLight').classList.toggle('active', t==='light');
-}
-document.getElementById('themeDark').addEventListener('click', ()=>{ document.documentElement.setAttribute('data-theme','dark'); localStorage.setItem('ledger_theme','dark'); updateThemeButtons(); });
-document.getElementById('themeLight').addEventListener('click', ()=>{ document.documentElement.setAttribute('data-theme','light'); localStorage.setItem('ledger_theme','light'); updateThemeButtons(); });
-
-/* ===================== Global error surfacing — so a crash shows a readable message instead of a blank/broken page ===================== */
-function showFatalError(err){
-  console.error(err);
-  let banner = document.getElementById('fatalErrorBanner');
-  if(!banner){
-    banner = document.createElement('div');
-    banner.id = 'fatalErrorBanner';
-    banner.style.cssText = 'position:fixed; top:0; left:0; right:0; z-index:999; background:#c0392b; color:#fff; padding:14px 18px; font-family:monospace; font-size:12.5px; line-height:1.5; white-space:pre-wrap; max-height:40vh; overflow:auto;';
-    document.body.appendChild(banner);
-  }
-  const msg = (err && err.message) ? err.message : String(err);
-  const stack = (err && err.stack) ? err.stack : '';
-  banner.innerHTML = `⚠ Ledger hit an error and couldn't finish loading.<br><br><b>${msg}</b><br><br>Try a hard refresh (Ctrl/Cmd+Shift+R). If that doesn't help, copy this message and send it back.<br><br><span style="opacity:.7; font-size:10.5px;">${(stack||'').replace(/</g,'&lt;')}</span>`;
-}
-window.addEventListener('error', (e)=>showFatalError(e.error||e.message));
-window.addEventListener('unhandledrejection', (e)=>showFatalError(e.reason));
-
-boot().catch(showFatalError);
-})();
-</script>
-</body>
-</html>
-                           
+    const nb={id:uid('nb'), name, color:PALETTE[notebooks.length%PA
